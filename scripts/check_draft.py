@@ -3,20 +3,19 @@
 """
 稿件机械检查。纯标准库，不联网。
 
-为什么需要它：这些检查（数破折号、数句长、找漏定义的缩写、比对引用有没有被动过）
-靠通读稿件去做，在几千词的篇幅上必漏。脚本一次扫完，把注意力留给真正需要判断的地方。
-脚本只负责"找出可疑位置"，判断和改写仍然是人的事——很多条目本身没有对错，要看语境。
+为什么需要它：这些检查（统计破折号和句长、查找未定义的缩写、比对引用是否发生变动）
+仅靠通读长稿容易遗漏。脚本统一报告可疑位置，以便将注意力用于需要人工判断的内容。
+脚本只负责定位问题；许多条目需要结合语境判断，不能据此直接改写。
 
 用法
     python3 check_draft.py draft.tex              # 检查单份稿件
     cat draft.txt | python3 check_draft.py -      # 从标准输入读
     python3 check_draft.py orig.tex --compare new.tex   # 润色前后比对
 
---compare 是润色模式的护栏：它比对引用键、\\ref/\\label、公式内容和所有数字，
-任何新增引用或被改动的数字都会报出来。skill 的前两条硬规则（不编引用、不改实质）
-靠人工复核很难保证，靠这个比对可以。
+--compare 用于执行润色前后的不变量检查：它比对引用键、\\ref/\\label、公式内容和所有数字，
+并报告新增引用或数字变动。人工复核容易遗漏这些变化，因此应结合该模式检查。
 
-退出码：0 干净，1 有硬问题，2 只有需人工判断的条目。
+退出码：0 未发现问题，1 发现确定性问题，2 仅发现需要人工判断的条目。
 """
 
 import argparse
@@ -26,7 +25,7 @@ import sys
 from collections import Counter, defaultdict
 
 # ---------------------------------------------------------------- 词表
-# 分两级：HARD 几乎一定要改；SOFT 要看语境，只提示位置。
+# 分两级：HARD 表示按当前规则可直接判定的问题；SOFT 表示需要结合语境判断的项目。
 
 AI_MARKERS_HARD = [
     "delve", "tapestry", "intricate", "pivotal", "multifaceted", "seamless",
@@ -82,7 +81,7 @@ OVERCLAIM = [
     (r"\bin general\b", "声称范围可能超过实验覆盖范围"),
     (r"\bthis is the first (paper|study|work)\b", "需加 to the best of our knowledge"),
     (r"\ba wide range of scenarios\b", "未做跨场景验证不能这样写"),
-    (r"\bclearly (better|superior|outperforms)\b", "替读者下判断，给数字"),
+    (r"\bclearly (better|superior|outperforms)\b", "避免主观判断；改为报告具体数值"),
     (r"\b(greatly|obviously|undoubtedly|definitely|perfectly)\b", "程度副词无信息量"),
     (r"\bsignificantly (out)?perform", "有配对检验或秩和检验才能用 significantly"),
     (r"\bour (model|method|approach) is (efficient|interpretable|scalable|robust)\b",
@@ -106,7 +105,7 @@ SPELLING_PAIRS = [
     ("labeled", "labelled"), ("center", "centre"), ("optimize", "optimise"),
     ("characterize", "characterise"), ("generalize", "generalise"),
 ]
-# 疑似过去时。方法类论文默认现在时，例外通常不超过三五处。
+# 疑似过去时。方法类论文默认使用现在时；出现多处过去时应逐项核对。
 PAST_PATTERNS = [
     r"\bwe (collected|conducted|constructed|proposed|used|obtained|applied|"
     r"performed|adopted|developed|showed|found|achieved|trained|evaluated|"
@@ -270,7 +269,7 @@ def check_tense(prose, rep):
         hits += [m.start() for m in re.finditer(pat, prose, flags=re.I)]
     if len(hits) > 5:
         rep.add("soft", "疑似过去时",
-                f"共 {len(hits)} 处。方法类论文默认现在时，真正的一次性历史事实通常不超过三五处")
+                f"共 {len(hits)} 处。方法类论文默认使用现在时；请逐项确认是否为一次性历史事实")
     for pos in sorted(hits)[:12]:
         rep.add("soft", "疑似过去时", f"L{line_of(prose, pos)}: …{context(prose, pos)}…")
 
@@ -288,9 +287,9 @@ def check_sentences(prose, rep):
             f"共 {len(lengths)} 句，均值 {mean:.1f}，标准差 {sd:.1f}，"
             f"变异系数 {cv:.2f}，落在 15–25 词的占 {band:.0%}")
     if cv < 0.35:
-        rep.add("soft", "句长分布", "变异系数偏低：句长过于均匀，是最稳定的 AI 结构标记")
+        rep.add("soft", "句长分布", "变异系数偏低：句长分布可能过于均匀，需结合语境人工判断")
     if band > 0.55:
-        rep.add("soft", "句长分布", "过半句子挤在 15–25 词：合并短句或拆开长句，让长度跟着内容走")
+        rep.add("soft", "句长分布", "超过半数句子的长度集中在 15–25 词：应根据内容关系合并短句或拆分长句")
     for s in sents:
         n = len(s.split())
         if n > 45:
@@ -345,7 +344,7 @@ def compare(orig_text, new_text):
         lines += [f"  + {k} ×{n}" for k, n in added.items()]
     if removed:
         clean = False
-        lines.append("\n[丢失引用]  改写时被吃掉的引用：")
+        lines.append("\n[丢失引用]  改写后缺失的引用：")
         lines += [f"  - {k} ×{n}" for k, n in removed.items()]
 
     for key, name in (("labels", "\\label"), ("refs", "\\ref")):
@@ -370,7 +369,7 @@ def compare(orig_text, new_text):
         lines.append(f"  新增: {', '.join(sorted(n_add)[:20]) or '无'}")
 
     if clean:
-        lines.append("\n引用、标签、公式与数字全部保持一致。语言层改动可以放心交付。")
+        lines.append("\n未发现引用、标签、公式或数字发生变化。其他实质性内容仍需人工复核。")
     return "\n".join(lines), clean
 
 
@@ -386,7 +385,7 @@ def main():
     ap = argparse.ArgumentParser(description="方法类论文稿件机械检查")
     ap.add_argument("path", help="稿件路径，'-' 表示从标准输入读")
     ap.add_argument("--compare", metavar="EDITED",
-                    help="给出润色后的稿件，比对引用、公式与数字是否被动过")
+                    help="给出润色后的稿件，比对引用、公式与数字是否发生变动")
     args = ap.parse_args()
 
     text = read(args.path)
