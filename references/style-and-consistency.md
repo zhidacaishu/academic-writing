@@ -1,6 +1,6 @@
 # 文风、一致性与说服力
 
-本文件是全局约束，不分模式，不分章节，所有输出都要过一遍。
+本文件只约束本 skill 生成或润色的英文论文正文，不约束中文来源文本、面向作者的中文说明或 LaTeX 注释、公式和其他非散文源码。
 
 ---
 
@@ -18,7 +18,7 @@
 | 强调性停顿 | 直接删除或改用逗号 | `This is, in fact, the key trade-off` |
 | 列举后的总结 | 拆成两句 | `Sparsity, dynamics, and heterogeneity all matter. Our design addresses each.` |
 
-中文稿里的破折号同理，改用括号、冒号或分句。
+中文来源文本出现破折号时，不修改中文原文；翻译成英文时根据原句逻辑在英文输出中改用括号、冒号或分句。
 
 ---
 
@@ -140,17 +140,17 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 - **困惑度（perplexity）**：文本对语言模型的可预测程度。模型倾向于选高概率词，所以生成文本的用词比人类更"意料之中"。
 - **突发度（burstiness）**：句长与句式在全文中的变化幅度。人类在长短句之间来回切换，模型倾向于保持均匀。
 
-词表会随模型版本和使用习惯变化，因此固定名单只能用于提示。应结合上下文判断相关词语是否缺乏具体所指、是否重复出现，以及句式是否过于均匀。
+词表会随模型版本和使用习惯变化，因此固定名单只能供人工复核。出现某个合法词或短语本身不构成问题，也不得仅凭它改写句子；应结合上下文判断是否缺乏具体所指、机械重复或掩盖了可验证内容。`scripts/check_draft.py` 不扫描这些词和短语。
 
 **不要以通过检测器为目标。**学术写作本身具有较强的格式约束，自动检测可能误判正式文本。正确目标是提高内容的具体性、论证质量和阅读自然度；检测结果不能作为唯一判断依据。
 
-### 标记词
+### 人工复核线索：词语
 
 delve、underscore（作动词）、tapestry、intricate、pivotal、multifaceted、realm（比喻义）、landscape（比喻义）、seamless、holistic、testament、garner、harness（比喻义）、navigate（比喻义）、unlock（比喻义）、revolutionize、paramount、meticulous、showcase（作动词）、foster（滥用时）、nuanced（滥用时）、comprehensive（滥用时）。
 
 注意：robust 和 robustness 在方法论文里是技术术语（robustness checks），不在此列。crucial、critical、significant 在有具体所指时可用，泛泛地说 plays a crucial role 才是问题。
 
-### 标记短语
+### 人工复核线索：短语
 
 `It is worth noting that` · `It is important to note that` · `plays a crucial role in` · `sheds light on` · `paves the way for` · `In today's rapidly evolving landscape` · `At its core` · `This raises an important question` · `In conclusion`（结论段直接讲结论）· `Overall,`（作段首万能开头时）
 

@@ -1,11 +1,11 @@
 ---
 name: academic-writing
-description: 信息系统与定量营销领域"设计科学 / 方法类论文"的起草、润色与结构诊断，专门处理中文思路写出的英文稿。目标期刊为 ISR、MISQ、Management Science、Marketing Science、IJOC、JMIS、DSS 一类。Use this skill whenever the user is working on a method paper, artifact paper, model paper, or design science research manuscript, including any writing about a proposed model, framework, algorithm, or recommender/prediction method, or its title, abstract, challenges section, related work, problem formulation, model development, ablation studies, baselines, evaluation, or managerial implications. Also use when they paste a paragraph, paste LaTeX source, or upload a manuscript and say 帮我改改 / 润色一下 / 这样写行吗 / 翻译成英文 / 逻辑有问题吗 / 摘要怎么写 / 标题行不行 / 审稿人说贡献不清楚, without ever using the word 论文 or "paper". Default to using this skill for any academic-register writing help in IS, marketing science, or management science. The cost of over-triggering is low, the cost of missing is a draft that reads like a translation.
+description: This skill should be used for English drafting, polishing, translation, or structural diagnosis of design-science and artifact-centered method papers in information systems or quantitative marketing. Trigger on requests such as “帮我改改”, “润色一下”, “翻译成英文”, “逻辑有问题吗”, “摘要怎么写”, “标题行不行”, or “审稿人说贡献不清楚”. Chinese text may serve as the semantic source, but Chinese paper prose is not drafted or polished.
 ---
 
 # 学术写作：设计科学 / 方法类论文
 
-这个 skill 面向模型设计较为完整、中文论述清楚，但英文稿仍有明显翻译痕迹的作者。此类稿件的问题通常不只涉及语法，还涉及论文体裁与论证结构。审稿意见常表现为 the contribution is unclear、the writing needs work 或 this reads like an application rather than a methodological contribution。
+这个 skill 面向模型设计较为完整、中文论述清楚，但英文稿仍有明显翻译痕迹的作者。论文正文交付只使用英文；中文材料可作为英文翻译、起草的语义来源，或在用户明确要求时仅作高层结构诊断，不起草或润色中文论文正文。此类稿件的问题通常不只涉及语法，还涉及论文体裁与论证结构。审稿意见常表现为 the contribution is unclear、the writing needs work 或 this reads like an application rather than a methodological contribution。
 
 这些问题大多具有可识别的结构模式，可以按照以下规则处理。
 
@@ -13,21 +13,22 @@ description: 信息系统与定量营销领域"设计科学 / 方法类论文"�
 
 ## 第一步：判断工作模式
 
-模式由**输入粒度**和用户意图共同决定。只看用户说什么会判错："帮我看看"跟着一个段落是润色，跟着一整节是诊断。
+模式首先由用户的**明确意图**决定；输入粒度只用于消解“帮我看看”“这样行吗”等含糊请求，不能覆盖用户明示的任务。
 
-| 输入 | 用户在说什么 | 模式 | 交付什么 |
+| 条件 | 模式 | 交付什么 |
 |---|---|---|---|
-| 片段到单节 | 改改 / 润色 / 不地道 / 翻译成英文 / 帮我看看 | **润色** | 改后全文 + 实质性改动清单 |
-| 整节以上或整篇 | 帮我看看 / 有没有问题 / 结构怎么调 / 审稿人说贡献不清楚 | **结构诊断** | 诊断意见，**不要**直接重写全文 |
-| 没有稿子，只有要求 | 帮我写引言 / 补一段相关工作 / 起草贡献声明 / 写摘要 / 想个标题 | **起草** | 成稿 + 需作者补充的占位标记 |
+| 任意长度，明确说润色、翻译、逐句对照、全文修改或重写 | **润色** | 请求范围内的改后全文 + 改动说明 |
+| 任意长度，明确要求诊断逻辑、结构、贡献或审稿意见 | **结构诊断** | 覆盖请求范围的诊断意见，**不要**直接重写全文 |
+| 同时明确要求诊断和改写 | **组合执行** | 先诊断，再按诊断结果改写请求范围 |
+| 没有稿子，只有写作要求 | **起草** | 英文成稿 + 需作者补充的占位标记 |
 
-长稿在用户未明确要求全文修改时，默认采用结构诊断模式。用户明确要求完整修改、通篇润色或全文重写时，应处理全文，不得只交付部分章节。执行过程中可以按小节分块处理和复核，但最终交付物应覆盖用户要求的全部范围。
+只有请求含糊时才按粒度破平局：句子、段落或明显不完整的小节默认润色；能够确认是完整小节或更长文本时默认结构诊断。用户明确要求完整修改、通篇润色或全文重写时，应处理全文，不得只交付部分章节。
 
 无法判断模式时，只提出一个最具区分度的问题。
 
 ### 目标期刊
 
-如可从稿件判断目标期刊，则不再询问。ISR 与 MISQ 重视 kernel theory 和设计科学定位；Marketing Science 更重视营销问题与管理启示；IJOC 更重视算法性质、复杂度与计算实验的完整性。无法判断时，默认采用 INFORMS 体系中同类方法论文的通行标准。
+如可从稿件判断目标期刊，则不再询问。润色或翻译无需询问，采用通行的 design-science 写作标准；结构诊断或起草无法判断时询问一次，作者未指定则同样采用该通行标准。
 
 **主要参考文件**：`references/design-science-genre.md` 是本 skill 的核心，处理结构问题时必读。
 
@@ -58,7 +59,7 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 如果原文英文与中文原意不符，或表述构成作者可能尚未意识到的强声明，**应明确指出，不得自行修改**。此类内容汇总为“需要作者确认的实质性改动”清单，置于改后全文之后。
 
-这两条靠通读复核并不可靠，交付前用 `scripts/check_draft.py --compare` 比对一遍。
+这两条靠通读复核并不可靠，交付前按下文命令运行检查器，并用 `--compare` 比对一遍。
 
 ### 三、声称强度纪律
 
@@ -83,20 +84,21 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 - `\cite{}` `\citep{}` `\citet{}` 里的引用键，一个字符都不改
 - `$...$`、`\begin{equation}` 等公式内部的一切
-- `\label{}` `\ref{}` `\eqref{}`、图表环境、表格内的对齐符号
-- 注释行、宏定义、包引入
+- `\label{}` `\ref{}` `\eqref{}`，图表/表格结构与对齐符号
+- 注释、宏定义、包引入及 `\includegraphics`、`\input`、`\include` 等结构命令
+- Markdown 的 YAML frontmatter、围栏代码块和行内代码
 
-常见错误是修改散文之外的源码内容，例如把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式中的符号。这些修改可能导致编译失败；即使仍能编译，也可能造成符号与后文不一致。
+`\caption{}`、`\section{}`、`\emph{}` 等文本参数属于可编辑散文，只改其中语言，不改命令结构。常见错误是把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式中的符号；这些修改可能导致编译失败或符号不一致。
 
-上传的是 .docx / .pdf 时先读文件再处理，不要凭对话里的片段推测全文。
+只接受两类输入：提示词中直接提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。不读取、不抽取、不 OCR，也不推断 `.docx`、`.pdf`、`.rtf`、图片或其他附件；只有不支持的附件时，请作者粘贴文本或导出为支持格式。中文输入只作为英文写作的语义来源或结构诊断材料，脚本只用于检查最终英文稿。
 
 ### 长稿分块
 
-长稿默认按小节分块处理：修改一节并交付，待作者确认术语和语气后再处理下一节。分块确认可以避免同一理解偏差扩散至全文。
+长稿可以按小节分块处理和复核，以避免同一理解偏差扩散至全文；分块是内部执行方法，不是缩减交付范围的理由。
 
-用户明确要求完整修改时，仍可在执行过程中按小节处理，但不得停留在部分交付。应完成所有章节的修改与复核，并交付完整修改稿。若单次对话输出无法容纳全文，应将完整结果写入文件，而不是缩减处理范围。
+除非用户明确要求分批交付，否则结构诊断应覆盖请求的完整范围，全文润色应完成所有章节的修改与复核。若单次对话输出无法容纳全文，应将完整结果写入新的 `.tex`、`.md` 或 `.txt` 文件，而不是缩减处理范围；不得覆盖源稿或其他已有文件。
 
-采用分块交付时，开始前应说明稿件的章节数量和本次处理范围。完整修改模式则应说明全文处理计划和最终交付形式。
+用户明确要求分批交付时，开始前说明稿件的章节数量和本次处理范围；完整修改模式则说明全文处理计划和最终交付形式。
 
 ### 改动怎么呈现
 
@@ -105,45 +107,41 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 1. **改后全文**（该节完整，不要只给片段）
 2. **需作者确认的实质性改动**，通常 3–8 条。纯语言改动不列，列了会淹没重点。
 
-作者要求逐句对照时，使用“原句 → 改句 → 修改理由”的三列表格，只列实质性改动。稿件较长或作者需要直接使用修改稿时，应将改后全文写入文件交付，而不是仅在对话中展示。
+作者明确要求逐句对照时，这是上述默认清单的例外：使用“编号与原句 → 改句 → 修改理由”的三列表格，按原序覆盖请求范围内**每一个散文句**。未改句也要列出并注明“保留 / 无需修改”，纯语言改动同样说明理由；拆句时一个原句对应多个改句，合句时在同一行列出连续的多个原句编号。逐句表不得抽样或省略，长表写入 `.md` 或 `.txt` 文件，同时仍交付改后全文和需作者确认的实质性问题。
 
 ### 机械检查
 
-`scripts/check_draft.py` 是纯标准库脚本，用于执行仅靠通读容易遗漏的检查：长破折号、全角标点与中文字符残留、模型化表达特征、中式表达、句长分布与变异系数、缩写首现是否定义、写法与英美拼写混用、疑似过去时、数字格式。
+交付前运行纯标准库脚本；润色时另用 `--compare` 核对数字、公式、引用及 Markdown/LaTeX 受保护源码：
 
 ```bash
-python3 scripts/check_draft.py draft.tex                       # 交付前运行检查
-python3 scripts/check_draft.py orig.tex --compare edited.tex   # 润色前后比对
+python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
+python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
 ```
 
-`--compare` 用于检查润色前后的不变量：它比对引用键、`\label`/`\ref`、公式内容和全部数字，并报告新增引用或数字变动。
-
-没有代码执行环境时，应依据上述项目进行人工检查，并在交付时说明检查方式。人工通读可能遗漏机械性问题，因此需要明确这一限制。
-
-脚本只覆盖机械层面。挑战是否成立、设计与评估是否对应、贡献是不是设计知识，它判断不了。
+脚本报告确定性问题和人工复核项，并保留源码行号。它不能判断主张是否改变、设计与评价是否对应或贡献层级；仍须人工复核语义。无法执行脚本时，按同一项目人工检查并说明限制。
 
 ---
 
-## 输出风格硬约束
+## 输出风格要求
 
-以下八条对所有输出生效，不分模式，不分章节。详细判据与替换方案见 `references/style-and-consistency.md`，处理任何成稿都要读。
+以下规则只约束生成或润色的**英文论文正文**。一致性、语法和不用长破折号是硬要求；句式、句长、主谓距离、从句层级和时态是默认目标，应结合语义判断，不机械套用阈值。详细判据见 `references/style-and-consistency.md`。
 
-1. **前后一致。**该固定的固定，不该固定的可以变。有定义的技术构念、符号、方法名、缩写、数字格式必须全文统一；指代自己方法的说法（our model / the proposed approach / 方法缩写）和一般性描述用语可以正常变化。判断依据：换个说法会不会让读者以为这是另一个东西。
-2. **表达清晰。**保持学术语域，不要刻意改为过度口语化的表达。utilize、employ、demonstrate、facilitate 等标准学术用词可以正常使用。应删除冗余结构（due to the fact that、it should be noted that），并将不必要的名词化结构还原为动词（conduct an analysis of → analyze）。
-3. **句式简单，长度多变。**结构上一句一个主要主张，主语与谓语之间不超过 10 个词，嵌套从句最多一层。避免句长过度集中在 15 到 25 词；句长变化应由内容复杂度决定，不应人为制造差异。
-4. **逻辑紧密。**每段第一句应承担论证功能，而非仅罗列内容。段间衔接依靠明确的逻辑关系，不依赖 Moreover / Furthermore / In addition 的重复使用。
-5. **语法正确。**重点查：平行结构、比较结构是否完整、which 与 that、学术动词搭配、长主语的主谓一致、悬垂分词。
-6. **时态默认现在时。**理论、模型、数据、实验流程、图表描述和结论默认使用现在时。一次性历史事实可以使用过去时；具体例外见 `references/cn-en-transfer.md` 第二节。
-7. **不用长破折号。**中文长破折号（——）、英文 em dash（—）和 LaTeX 的 `---` 均不使用。en dash（–）仅用于数字区间和复合专名。删除长破折号时应根据其句法功能改写，而非直接替换为逗号。
-8. **减少模型化表达特征。**检查高频标记词与短语、机械重复的排比或概括句、过度均匀的句长与段长，以及缺乏具体内容或明确立场的段落。这些特征仅用于提示人工复核，不能单独用于判定文本来源。
+1. **前后一致。**技术构念、符号、方法名、缩写和数字格式保持统一；一般描述可自然变化。判断依据是换词是否会让读者误以为出现了另一个概念。
+2. **表达清晰。**保持学术语域，删除冗余结构和不必要的名词化，不因追求“简单”而机械替换正常学术用词。
+3. **句式清楚且有变化。**一句通常承载一个主要主张，优先缩短过长的主谓间隔和多层嵌套；句长随内容变化，不追求固定区间。
+4. **逻辑紧密。**段首承担论证功能，段间用明确逻辑关系衔接，不堆叠 Moreover / Furthermore / In addition。
+5. **语法正确。**重点检查平行与比较结构、关系从句、动词搭配、主谓一致和悬垂分词。
+6. **时态以现在时为默认。**理论、模型、图表和结论通常用现在时；已完成的实施、数据收集和历史事实可用过去时。例外见 `references/cn-en-transfer.md` 第二节。
+7. **不用长破折号。**不使用中文长破折号、em dash 或 LaTeX `---`；en dash 仅用于区间和复合专名。按句法功能改写，不直接替换为逗号。
+8. **模型化表达仅作复核线索。**检查机械排比、空泛概括和过度均匀的句段长度，不据此判定文本来源。
 
-另有一项正向要求：**说服力**。具体规则见 `references/style-and-consistency.md` 第六节。重点检查**预先回应替代方案**（每个设计组件都要回答“为什么不用更简单的做法”）和**声称与证据配对**（例如，可解释性声称应指向具体图表或案例）。
+同时检查**说服力**：关键设计决策是否回应更简单的替代方案，核心声称是否指向相应证据。详见 `references/style-and-consistency.md` 第六节。
 
 ---
 
-## 中文论文带过来的习惯
+## 中文思路迁移到英文稿时的常见问题
 
-词汇层的直译清单见 `references/cn-en-transfer.md` 第一节，脚本也会检查。本节只列需要调整段落结构的四类问题：
+词汇层的直译清单见 `references/cn-en-transfer.md` 第一节，脚本也会检查最终英文稿。本节只列需要在英文输出中调整的四类问题；不要改写中文来源文本，也不要生成中文润色稿：
 
 - **开头是 `With the rapid development of...` / `In recent years, more and more scholars...`**。方法论文第一段应立刻给出现象规模或业务张力。
 - **段间衔接只有 Firstly, Secondly, Thirdly, Finally**。这是编号，不是逻辑关系。
@@ -158,8 +156,8 @@ python3 scripts/check_draft.py orig.tex --compare edited.tex   # 润色前后比
 
 1. 通读全文，先检查是否存在第二、三条规则所述的实质性问题，并优先标出相关位置。
 2. 逐段改写。按 `references/cn-en-transfer.md` 处理句法与用词。
-3. 时态统一为现在时，例外见 `references/cn-en-transfer.md` 第二节。
-4. 运行 `scripts/check_draft.py`，再用 `--compare` 确认引用、公式与数字未发生变动。脚本无法检查符号一致性（上下标、粗体向量与斜体标量的区分、估计值的帽子记号），因此需要人工复核。
+3. 时态以现在时为默认，并按语义保留必要的过去时；例外见 `references/cn-en-transfer.md` 第二节。
+4. 运行 `${CLAUDE_SKILL_DIR}/scripts/check_draft.py`，再用 `--compare` 检查受保护对象的内容、顺序与局部绑定线索。任何变动或绑定提示都要人工核对；即使脚本未报告问题，也要复核符号一致性和实质主张。
 5. 按"改动怎么呈现"交付。
 
 改的幅度以"作者能认出这还是自己的文章"为界。
@@ -167,7 +165,7 @@ python3 scripts/check_draft.py orig.tex --compare edited.tex   # 润色前后比
 ### 起草模式
 
 1. 先明确这一节要承担什么功能（引言要立起挑战，评估要把性能归因到设计），再动笔。
-2. 按 `references/design-science-genre.md` 的结构模板写。摘要与标题另见该文件第十三节。
+2. 按 `references/design-science-genre.md` 建立问题、设计、贡献与评价之间的可追溯闭环。摘要与标题另见该文件第十三节。
 3. 所有需要作者填的地方用显式占位符：`[待补引用：...]`、`[待补数据：基线的具体配置]`、`[待确认：这条挑战对应模型的哪个组件]`。
 4. 写完对照 `references/design-science-genre.md` 第十二节的拒稿原因清单自查，再跑一遍脚本。
 
@@ -179,11 +177,11 @@ python3 scripts/check_draft.py orig.tex --compare edited.tex   # 润色前后比
 
 按以下顺序检查，并优先报告最早出现的结构性缺口。上层结构不成立时，下层语言优化无法解决核心问题：
 
-1. **挑战是否成立**。每个挑战是否确为既有方法无法处理的方法层面困难？是否能够定位到具体方法族，并说明其失效原因？
-2. **挑战 ↔ 设计是否对应**。模型的每个组件能否对应某项挑战？是否存在与挑战无关的复杂组件，或没有相应设计的挑战？
-3. **设计 ↔ 评估是否对应**。消融实验是否覆盖每个设计决策？可解释性、效率等声称是否有对应展示或数值支持？
-4. **贡献声明 ↔ 实际做到的是否一致**。引言承诺 N 条，讨论是否兑现 N 条？贡献是设计知识还是只是"我们提出了新模型"？
-5. **理论是否实际约束设计**（投 ISR/MISQ 时必查）。理论是否在模型章节中形成可识别的设计依据，而非只在引言中出现？
+1. **问题、挑战或解法目标是否成立**。它们是否有实际、数据或文献依据，能否转化为可由 artifact 回应并评价的目标？
+2. **挑战或目标 ↔ 设计是否可追溯**。每项核心目标是否有设计回应，每个关键设计是否有问题依据或知识依据？自然条件下最好清晰对齐；真实关系为一对多、多对一或交叉作用时，是否已显式说明？
+3. **设计与声称 ↔ 评价是否对应**。每项核心声称是否有适合其类型的证据？只有在设计可拆分且声称组件具有增量作用时才要求消融。
+4. **贡献声明 ↔ 实际做到的是否一致**。贡献属于 artifact、初步设计知识还是较成熟 design theory？引言、讨论和结论是否兑现同一组贡献？不得要求贡献数量等于挑战、设计或实验数量。
+5. **理论或其他知识基础是否适配**。投 ISR/MISQ 时必须检索相关理论并做适配检查，但不预设必须存在 kernel theory。若使用理论，它是否产生可识别的设计含义并得到评价？若没有相关理论，是否以既有设计知识、领域证据、需求和约束充分说明设计依据，并避免声称理论贡献？
 6. **管理启示是否从模型输出推出**。若建议不依赖本研究的模型输出，则缺乏研究特异性。
 
 这六层的详细判据在 `references/design-science-genre.md`。
@@ -196,7 +194,7 @@ python3 scripts/check_draft.py orig.tex --compare edited.tex   # 润色前后比
 
 | 文件 | 什么时候读 |
 |---|---|
-| `references/style-and-consistency.md` | 处理任何成稿都要读：文风硬约束、一致性检查清单、AI 味清除、说服力 |
-| `references/design-science-genre.md` | 结构、挑战架构、kernel theory、贡献声明、评估章节、摘要与标题、诊断判据 |
+| `references/style-and-consistency.md` | 处理任何英文成稿都要读：文风约束、一致性检查、模型化表达的人工复核、说服力 |
+| `references/design-science-genre.md` | 结构、可追溯闭环、理论适配、贡献层级、评估章节、摘要与标题、诊断判据 |
 | `references/cn-en-transfer.md` | 涉及中译英、中式英文、术语、句法、声称强度时 |
-| `scripts/check_draft.py` | 交付前必跑；润色模式另跑 `--compare` |
+| `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare` |

@@ -1,6 +1,6 @@
 # 中译英与中式学术英语处理
 
-本文件处理中文思路写出的英文稿。分五部分：
+本文件只处理中文思路或中文来源文本向**英文论文正文**的迁移，不起草或润色中文论文正文。分五部分：
 
 1. 用词对照表
 2. 句法层面的母语迁移
@@ -146,8 +146,10 @@
 
 中文允许较长的主语结构；英文中谓语出现过晚会增加句法解析难度。可以拆分长主语，或使用 that 从句后置相关内容。
 
-- 原：`The impact of the digital transformation strategies adopted by manufacturing firms in emerging markets on their long-term innovation performance is significant.`
-- 改：`Digital transformation significantly affects long-term innovation performance among manufacturing firms in emerging markets.`
+- 原：`The comparison of model performance across the five experimental settings under the sparse-data condition is reported in Table 4.`
+- 改：`Table 4 reports model performance across the five experimental settings under the sparse-data condition.`
+
+改写长主语时只调整句法焦点，不改变统计、因果或证据范围。除非原稿已有相应检验与识别设计，不得因缩句引入 `significantly`、`affects`、`drives` 等更强声称。
 
 ### 时态
 
@@ -259,4 +261,4 @@ Our model captures the dependence of Y on X ← 描述模型，安全
 - **作者自定义的方法名与假设名**。作者定义的研究标识，不应仅因“不符合一般英语表达”而替换。可以提出命名建议（要求：易于记忆、能够提示核心机制、缩写不与既有方法冲突），但相关改动必须标为实质性修改。
 - **中国情境的术语**：guanxi、hukou、danwei 等已进入英文文献，首次出现加简短解释即可，不必强行译成英文近义词。中国平台名（Tmall、Taobao、Douyin、Weibo）用官方英文名，首次出现加一句说明规模或性质。
 - **中国制度的专有名词**：split-share structure reform（股权分置改革）、Belt and Road Initiative、A-share market 等有约定译法，应采用通行译法，不要自行创造新译名。
-- **中文期刊投稿**。如果目标是《管理世界》《经济研究》等，中文学术文体自有规范，不要用英文期刊的标准去改中文稿的结构。
+- **中文论文正文**。本 skill 不起草或润色中文论文正文，也不声称符合中文期刊文体。中文文本只作为英文写作的语义来源；用户明确要求时可以给高层结构诊断，但输出不得伪装成中文期刊润色稿。
