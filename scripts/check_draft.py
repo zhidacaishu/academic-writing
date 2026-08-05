@@ -42,19 +42,21 @@ CN_ENGLISH = [
     "literatures", "researches", "super parameter", "target function",
     "over fitting", "cold boot", "generate process", "calculate complexity",
     "adjust parameters", "comparison experiment", "robust test",
-    "sensitivity analyse", "enterprise green", "reach the best",
-    "prior probability distribution",
+    "sensitivity analyse", "reach the best",
 ]
 CONTEXTUAL_WORDING = {
     "listed company": "确认是否具体指上市公司；若泛指企业，改用 firm/company",
     "hidden variable": "统计模型通常用 latent variable；确指未观测变量时可保留",
     "prior to": "before 通常更简洁，但时间或程序语境中可保留",
+    "subsequent to": "after 通常更简洁，但时间或程序语境中可保留",
+    "in the realm of": "滥用时压缩成 in；确指某一领域时可保留",
 }
 # 冗余结构。压缩后不损失正式度。
 BLOAT = {
     "due to the fact that": "because",
     "in spite of the fact that": "although",
     "it should be noted that": "删除，直接说",
+    "it is important to note that": "删除，直接说",
     "at this point in time": "now / currently",
     "the vast majority of": "most",
     "a wide array of": "various / 给数量",
@@ -63,8 +65,6 @@ BLOAT = {
     "make an assumption that": "assume",
     "conduct an analysis of": "analyze",
     "serve to illustrate": "illustrate",
-    "subsequent to": "after",
-    "in the realm of": "in",
 }
 # 声称强度越界。
 OVERCLAIM = [
@@ -91,7 +91,7 @@ SPELLING_PAIRS = [
     ("labeled", "labelled"), ("center", "centre"), ("optimize", "optimise"),
     ("characterize", "characterise"), ("generalize", "generalise"),
 ]
-# 疑似过去时。方法类论文默认使用现在时；出现多处过去时应逐项核对。
+# 疑似过去时。方法类论文全篇统一使用现在时，命中处应逐项改写。
 PAST_PATTERNS = [
     r"\bwe (collected|conducted|constructed|proposed|used|obtained|applied|"
     r"performed|adopted|developed|showed|found|achieved|trained|evaluated|"
@@ -101,11 +101,10 @@ PAST_PATTERNS = [
 ACRONYM_STOP = {
     "AI", "ML", "US", "UK", "EU", "PDF", "URL", "API", "CPU", "GPU", "RAM",
     "OK", "ID", "TV", "AND", "OR", "NOT", "THE", "A", "I", "II", "III", "IV",
-    "MATHINLINE", "MATHBLOCK",  # 本脚本自己的公式占位符
 }
 SENT_ABBREV = {
     "et al.", "e.g.", "i.e.", "cf.", "vs.", "Fig.", "Eq.", "Sec.", "Tab.",
-    "Ref.", "Dr.", "Prof.", "St.", "approx.", "resp.", "No.",
+    "Ref.", "Dr.", "Prof.", "St.", "approx.", "resp.",
 }
 
 CJK_PUNCT = "\u3001\u3002\uff01\uff08\uff09\uff0c\uff1a\uff1b\uff1f\uff0e\u300a\u300b\u3010\u3011\u2026\u3000\uff05\uff06\uff1c\uff1e"
@@ -503,6 +502,10 @@ def _scan_comments(text, occupied):
         for local_pos in range(body_end):
             if line[local_pos] != "%" or _is_escaped(line, local_pos):
                 continue
+            # 紧跟数字的 % 是百分号：LaTeX 正文里字面百分号必须写 \%，
+            # 而 .md/.txt 稿常直接写 15%，误判会把整行正文当注释屏蔽。
+            if local_pos and line[local_pos - 1].isdigit():
+                continue
             start, end = offset + local_pos, offset + body_end
             if not _overlaps(start, end, occupied):
                 raw = line[local_pos:body_end]
@@ -526,9 +529,15 @@ def _looks_like_inline_math(text, content_start, close):
 
 def _scan_math(text, occupied):
     events = _scan_environments(text, MATH_ENVS, "math", occupied)
+    # 本轮新增的都是 math 事件，且扫描指针只向前走，因此进入循环前快照一次
+    # 已占用位置即可；逐字符重扫 occupied 会让整体退化为 O(n^2)。
+    blocked = bytearray(len(text))
+    for lo, hi in occupied:
+        for pos in range(max(0, lo), min(len(text), hi)):
+            blocked[pos] = 1
     i = 0
     while i < len(text):
-        if any(lo <= i < hi for lo, hi in occupied):
+        if blocked[i]:
             i += 1
             continue
         opener = closer = command = None
@@ -752,8 +761,18 @@ def split_sentences(prose):
 
 
 # ---------------------------------------------------------------- 各项检查
-def check_dashes(text, rep):
+def _is_markdown_rule_line(text, pos):
+    """Markdown 的分隔线、setext 下划线与表格分隔行只由 - | : 组成，不是破折号。"""
+    start = text.rfind("\n", 0, pos) + 1
+    end = text.find("\n", pos)
+    line = text[start:] if end < 0 else text[start:end]
+    return bool(re.fullmatch(r"[ \t|:-]+", line))
+
+
+def check_dashes(text, rep, is_markdown=False):
     for m in re.finditer(r"\u2014{1,2}|(?<!-)---(?!-)", text):
+        if is_markdown and "-" in m.group() and _is_markdown_rule_line(text, m.start()):
+            continue
         rep.add("hard", "长破折号",
                 f"L{line_of(text, m.start())}: …{context(text, m.start())}…")
     for m in re.finditer(r"(?<=\s)\u2013(?=\s)", text):
@@ -770,7 +789,8 @@ def check_cjk_residue(text, rep):
                 f"L{line_of(text, m.start())}: …{context(text, m.start())}…")
     for m in re.finditer(r"[\u201c\u201d\u2018\u2019]", text):
         rep.add("soft", "弯引号",
-                f"L{line_of(text, m.start())}: LaTeX 稿应使用 `` '' …{context(text, m.start())}…")
+                f"L{line_of(text, m.start())}: 确认是否符合目标格式（LaTeX 用 `` ''） "
+                f"…{context(text, m.start())}…")
 
 
 def _scan_terms(prose, terms, rep, tier, section, note=None):
@@ -794,14 +814,16 @@ def check_wording(prose, rep):
         for m in re.finditer(pat, low):
             rep.add("soft", "声称强度",
                     f"L{line_of(prose, m.start())}: …{context(prose, m.start())}…  → {why}")
-    if re.search(r"\betc\.", low) or re.search(r"\band so on\b", low):
-        rep.add("soft", "兜底列举", "出现 etc. / and so on：列举应完整或说明选取标准")
+    if re.search(r"\betc\.", low):
+        rep.add("soft", "兜底列举", "出现 etc.：列举应完整或说明选取标准")
 
 
 def check_consistency(prose, rep):
     low = prose.lower()
     for group in VARIANT_GROUPS:
-        found = {v: len(re.findall(r"\b" + re.escape(v) + r"\b", low)) for v in group}
+        found = {
+            v: len(re.findall(r"\b" + re.escape(v) + r"s?\b", low)) for v in group
+        }
         used = {k: v for k, v in found.items() if v}
         if len(used) > 1:
             detail = "、".join(f"{k}×{v}" for k, v in used.items())
@@ -815,11 +837,12 @@ def check_consistency(prose, rep):
 
 def check_acronyms(prose, rep):
     seen = {}
-    for m in re.finditer(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)*\b", prose):
+    for m in re.finditer(r"\b[A-Z][A-Z0-9]+(?:-[A-Z0-9]+)*s?\b", prose):
         tok = m.group()
-        if tok in ACRONYM_STOP or tok.isdigit():
+        base = tok[:-1] if tok.endswith("s") else tok
+        if base in ACRONYM_STOP or base.isdigit():
             continue
-        seen.setdefault(tok, m.start())
+        seen.setdefault(base, m.start())
     for tok, pos in seen.items():
         window = prose[max(0, pos - 160):pos + len(tok) + 60]
         defined = re.search(r"\(\s*" + re.escape(tok) + r"s?\s*\)", window)
@@ -834,7 +857,7 @@ def check_tense(prose, rep):
         hits += [m.start() for m in re.finditer(pat, prose, flags=re.I)]
     if len(hits) > 5:
         rep.add("soft", "疑似过去时",
-                f"共 {len(hits)} 处。方法类论文默认使用现在时；请逐项确认是否为一次性历史事实")
+                f"共 {len(hits)} 处。方法类论文全篇统一使用现在时；请逐项改写")
     for pos in sorted(hits)[:12]:
         rep.add("soft", "疑似过去时", f"L{line_of(prose, pos)}: …{context(prose, pos)}…")
 
@@ -879,7 +902,7 @@ def check_numbers(prose, rep):
         places = Counter(len(d) for _, d in pcts)
         if len(places) > 1:
             rep.add("hard", "数字格式", f"百分比小数位数不一致：{dict(places)}")
-    if re.search(r"(?<![\d.])\.\d", prose) and re.search(r"\b0\.\d", prose):
+    if re.search(r"(?<![\w.])\.\d", prose) and re.search(r"\b0\.\d", prose):
         rep.add("hard", "数字格式", "同时出现 .5 与 0.5 两种写法")
 
 
@@ -1002,11 +1025,12 @@ def compare(orig_text, new_text, is_latex=None, is_markdown=False):
 
 # ---------------------------------------------------------------- 入口
 def infer_markdown(text):
-    return bool(
-        re.match(r"\A---[ \t]*(?:\r?\n|\r)", text)
-        or re.search(r"(?m)^ {0,3}(?:`{3,}|~{3,})", text)
-        or re.search(r"(?<!`)`[^`\r\n]+`(?!`)", text)
-    )
+    if re.match(r"\A---[ \t]*(?:\r?\n|\r)", text) or re.search(
+        r"(?m)^ {0,3}(?:`{3,}|~{3,})", text
+    ):
+        return True
+    # 单反引号在 LaTeX 里是开引号（``quote''），不能据此判定为 Markdown。
+    return bool(re.search(r"(?<!`)`[^`\r\n]+`(?!`)", text)) and not infer_latex(text)
 
 
 def syntax_hints(paths, texts):
@@ -1014,8 +1038,11 @@ def syntax_hints(paths, texts):
         Path(path).suffix.lower() for path in paths if path and path != "-"
     }
     is_latex = True if ".tex" in suffixes else None
-    is_markdown = ".md" in suffixes or any(infer_markdown(text) for text in texts)
-    return is_latex, is_markdown
+    if ".md" in suffixes:
+        return is_latex, True
+    if ".tex" in suffixes:
+        return is_latex, False
+    return is_latex, any(infer_markdown(text) for text in texts)
 
 
 def read(path):
@@ -1032,7 +1059,7 @@ def read(path):
 def run_checks(text, is_latex=None, is_markdown=False):
     prose = build_prose_view(text, is_latex, is_markdown)
     rep = Report()
-    check_dashes(prose, rep)
+    check_dashes(prose, rep, is_markdown)
     check_cjk_residue(prose, rep)
     check_wording(prose, rep)
     check_consistency(prose, rep)

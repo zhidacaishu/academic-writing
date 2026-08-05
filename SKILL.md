@@ -5,9 +5,9 @@ description: This skill should be used for English drafting, polishing, translat
 
 # 学术写作：设计科学 / 方法类论文
 
-这个 skill 面向模型设计较为完整、中文论述清楚，但英文稿仍有明显翻译痕迹的作者。论文正文交付只使用英文；中文材料可作为英文翻译、起草的语义来源，或在用户明确要求时仅作高层结构诊断，不起草或润色中文论文正文。此类稿件的问题通常不只涉及语法，还涉及论文体裁与论证结构。审稿意见常表现为 the contribution is unclear、the writing needs work 或 this reads like an application rather than a methodological contribution。
+这个 skill 面向模型设计较为完整、中文论述清楚，但英文稿仍有明显翻译痕迹的作者。**论文正文交付只使用英文**：中文材料只作为起草、翻译的语义来源，或在用户明确要求时用于高层结构诊断，不起草或润色中文论文正文。
 
-这些问题大多具有可识别的结构模式，可以按照以下规则处理。
+此类稿件的问题不只在语法，还在论文体裁与论证结构，审稿意见常写成 the contribution is unclear、the writing needs work 或 this reads like an application rather than a methodological contribution。这些问题大多有可识别的结构模式，按下列规则处理。
 
 ---
 
@@ -16,7 +16,7 @@ description: This skill should be used for English drafting, polishing, translat
 模式首先由用户的**明确意图**决定；输入粒度只用于消解“帮我看看”“这样行吗”等含糊请求，不能覆盖用户明示的任务。
 
 | 条件 | 模式 | 交付什么 |
-|---|---|---|---|
+|---|---|---|
 | 任意长度，明确说润色、翻译、逐句对照、全文修改或重写 | **润色** | 请求范围内的改后全文 + 改动说明 |
 | 任意长度，明确要求诊断逻辑、结构、贡献或审稿意见 | **结构诊断** | 覆盖请求范围的诊断意见，**不要**直接重写全文 |
 | 同时明确要求诊断和改写 | **组合执行** | 先诊断，再按诊断结果改写请求范围 |
@@ -59,13 +59,13 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 如果原文英文与中文原意不符，或表述构成作者可能尚未意识到的强声明，**应明确指出，不得自行修改**。此类内容汇总为“需要作者确认的实质性改动”清单，置于改后全文之后。
 
-这两条靠通读复核并不可靠，交付前按下文命令运行检查器，并用 `--compare` 比对一遍。
+这两条靠通读复核并不可靠，交付前按下文命令运行检查器，润色模式再用 `--compare` 比对。但脚本查不出文献是否真实存在；新增引用只有写成 LaTeX `\cite` 系命令时才能发现；起草模式没有可比对的原稿。这三处仍须人工核对。
 
 ### 三、声称强度纪律
 
 方法论文最容易被审稿人攻击的两处：
 
-- **统计与非统计的 significant**。中文“显著优于”常用于表示“明显更好”。英文 `significantly outperforms` 在实验语境下通常被理解为有统计检验支持。未进行配对检验或秩和检验时，应写 `consistently outperforms` 或 `achieves the best performance among the compared baselines`。
+- **统计与非统计的 significant**。中文“显著优于”常用于表示“明显更好”。英文 `significantly outperforms` 在实验语境下通常被理解为有统计检验支持。未进行配对检验或秩和检验时，改写为 `achieves the best performance among the compared baselines`；只有多个设置都成立才用 `consistently outperforms`。
 - **声称范围超过实验范围**。一个数据集支撑不了 `in general`；未做跨场景验证支撑不了 `applicable to a wide range of scenarios`。
 
 同类问题还有：模型拟合出的系数方向不等于因果效应；管理启示里的"提升了转化率"若没有随机变异支撑，应降级为"与……一致"。
@@ -90,15 +90,13 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 `\caption{}`、`\section{}`、`\emph{}` 等文本参数属于可编辑散文，只改其中语言，不改命令结构。常见错误是把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式中的符号；这些修改可能导致编译失败或符号不一致。
 
-只接受两类输入：提示词中直接提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。不读取、不抽取、不 OCR，也不推断 `.docx`、`.pdf`、`.rtf`、图片或其他附件；只有不支持的附件时，请作者粘贴文本或导出为支持格式。中文输入只作为英文写作的语义来源或结构诊断材料，脚本只用于检查最终英文稿。
+只接受两类输入：提示词中直接提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。不读取、不抽取、不 OCR，也不推断 `.docx`、`.pdf`、`.rtf`、图片或其他附件；只有不支持的附件时，请作者粘贴文本或导出为支持格式。脚本只用于检查最终英文稿。
 
 ### 长稿分块
 
-长稿可以按小节分块处理和复核，以避免同一理解偏差扩散至全文；分块是内部执行方法，不是缩减交付范围的理由。
+长稿按小节分块处理和复核，避免同一理解偏差扩散至全文。分块是内部执行方法，不是缩减交付范围的理由：除非用户明确要求分批交付，结构诊断应覆盖请求的完整范围，全文润色应完成所有章节的修改与复核。若单次对话输出容纳不下，把完整结果写入新的 `.tex`、`.md` 或 `.txt` 文件，不得缩减处理范围，也不得覆盖源稿或其他已有文件。
 
-除非用户明确要求分批交付，否则结构诊断应覆盖请求的完整范围，全文润色应完成所有章节的修改与复核。若单次对话输出无法容纳全文，应将完整结果写入新的 `.tex`、`.md` 或 `.txt` 文件，而不是缩减处理范围；不得覆盖源稿或其他已有文件。
-
-用户明确要求分批交付时，开始前说明稿件的章节数量和本次处理范围；完整修改模式则说明全文处理计划和最终交付形式。
+分批交付时，开始前说明稿件的章节数量和本次范围；完整修改则说明全文处理计划和最终交付形式。
 
 ### 改动怎么呈现
 
@@ -116,7 +114,12 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 ```bash
 python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
 python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
+python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" - <<'EOF'   # 检查对话中粘贴的文本
+（英文正文）
+EOF
 ```
+
+退出码：0 无问题，1 有必改项，2 只有人工复核项，3 输入或参数错误。**2 是正常结果**（句长分布始终作为复核项输出），不要当成命令执行失败。
 
 脚本报告确定性问题和人工复核项，并保留源码行号。它不能判断主张是否改变、设计与评价是否对应或贡献层级；仍须人工复核语义。无法执行脚本时，按同一项目人工检查并说明限制。
 
@@ -124,14 +127,14 @@ python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.te
 
 ## 输出风格要求
 
-以下规则只约束生成或润色的**英文论文正文**。一致性、语法和不用长破折号是硬要求；句式、句长、主谓距离、从句层级和时态是默认目标，应结合语义判断，不机械套用阈值。详细判据见 `references/style-and-consistency.md`。
+以下规则只约束生成或润色的**英文论文正文**。一致性、语法、时态和不用长破折号是硬要求；句式、句长、主谓距离和从句层级是默认目标，应结合语义判断，不机械套用阈值。详细判据见 `references/style-and-consistency.md`。
 
 1. **前后一致。**技术构念、符号、方法名、缩写和数字格式保持统一；一般描述可自然变化。判断依据是换词是否会让读者误以为出现了另一个概念。
 2. **表达清晰。**保持学术语域，删除冗余结构和不必要的名词化，不因追求“简单”而机械替换正常学术用词。
 3. **句式清楚且有变化。**一句通常承载一个主要主张，优先缩短过长的主谓间隔和多层嵌套；句长随内容变化，不追求固定区间。
 4. **逻辑紧密。**段首承担论证功能，段间用明确逻辑关系衔接，不堆叠 Moreover / Furthermore / In addition。
 5. **语法正确。**重点检查平行与比较结构、关系从句、动词搭配、主谓一致和悬垂分词。
-6. **时态以现在时为默认。**理论、模型、图表和结论通常用现在时；已完成的实施、数据收集和历史事实可用过去时。例外见 `references/cn-en-transfer.md` 第二节。
+6. **时态统一为现在时。**理论、模型、数据与实验流程、图表和结论一律用现在时；引言概述既有研究可用现在完成时。见 `references/cn-en-transfer.md` 第二节。
 7. **不用长破折号。**不使用中文长破折号、em dash 或 LaTeX `---`；en dash 仅用于区间和复合专名。按句法功能改写，不直接替换为逗号。
 8. **模型化表达仅作复核线索。**检查机械排比、空泛概括和过度均匀的句段长度，不据此判定文本来源。
 
@@ -141,7 +144,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.te
 
 ## 中文思路迁移到英文稿时的常见问题
 
-词汇层的直译清单见 `references/cn-en-transfer.md` 第一节，脚本也会检查最终英文稿。本节只列需要在英文输出中调整的四类问题；不要改写中文来源文本，也不要生成中文润色稿：
+词汇层的直译清单见 `references/cn-en-transfer.md` 第一节，脚本也会检查最终英文稿。本节只列需要在英文输出中调整的四类问题：
 
 - **开头是 `With the rapid development of...` / `In recent years, more and more scholars...`**。方法论文第一段应立刻给出现象规模或业务张力。
 - **段间衔接只有 Firstly, Secondly, Thirdly, Finally**。这是编号，不是逻辑关系。
@@ -156,7 +159,7 @@ python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.te
 
 1. 通读全文，先检查是否存在第二、三条规则所述的实质性问题，并优先标出相关位置。
 2. 逐段改写。按 `references/cn-en-transfer.md` 处理句法与用词。
-3. 时态以现在时为默认，并按语义保留必要的过去时；例外见 `references/cn-en-transfer.md` 第二节。
+3. 把过去时统一改为现在时；处理方式见 `references/cn-en-transfer.md` 第二节。
 4. 运行 `${CLAUDE_SKILL_DIR}/scripts/check_draft.py`，再用 `--compare` 检查受保护对象的内容、顺序与局部绑定线索。任何变动或绑定提示都要人工核对；即使脚本未报告问题，也要复核符号一致性和实质主张。
 5. 按"改动怎么呈现"交付。
 

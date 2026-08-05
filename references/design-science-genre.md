@@ -2,7 +2,7 @@
 
 适用期刊：Information Systems Research、MIS Quarterly、Management Science、Marketing Science、INFORMS Journal on Computing、JMIS、Decision Support Systems、POM。
 
-本文件只用于本 skill 的英文论文输出。中文文本可以作为英文写作的语义来源，或在用户明确要求时用于高层结构诊断；不得据此起草或润色中文论文正文，也不得声称符合中文期刊文体。
+本文件只用于本 skill 的英文论文输出；中文文本仅作为语义来源或结构诊断材料。
 
 **本文件目录**
 
@@ -330,7 +330,7 @@ Gregor and Jones (2007) 的完整 IS design theory 包含 justificatory knowledg
 - **缩写未定义**。摘要会被单独阅读（检索结果页、会议手册），所以缩写在摘要里定义一次，正文里再定义一次。
 - **不必要地罗列具体数字**。摘要应突出研究问题、关键设计和主要结论，不应压缩成结果表的复述。确需保留的关键数字必须与正文一致。
 - **只有方法没有结果，或只有结果没有设计**。
-- **动词用过去时**。摘要同样默认现在时。
+- **动词用过去时**。摘要同样统一用现在时。
 
 ### 标题
 

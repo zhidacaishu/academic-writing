@@ -101,7 +101,7 @@ skill 内部通过 `${CLAUDE_SKILL_DIR}` 定位随附脚本，因此无论从哪
 
 ## 机械检查器
 
-以下示例用于在 `academic-writing/` 仓库根目录手动运行检查器；skill 自动执行时会通过 `${CLAUDE_SKILL_DIR}` 定位同一脚本。检查器需要 Python 3.7 或更高版本，仅使用标准库，不联网，也不安装第三方依赖；当前在 Python 3.13.12 上验证。
+以下示例用于在 `academic-writing/` 仓库根目录手动运行检查器；skill 自动执行时会通过 `${CLAUDE_SKILL_DIR}` 定位同一脚本。检查器需要 Python 3.7 或更高版本，仅使用标准库，不联网，也不安装第三方依赖；回归测试在 Python 3.12 上通过。
 
 ### 常规检查
 
@@ -114,9 +114,9 @@ python scripts/check_draft.py draft.tex
 - 中文字符、全角标点和长破折号残留
 - 确定性中式表达与上下文相关措辞
 - 写法、拼写和数字格式一致性
-- 缩写首现、疑似过去时和句长分布
+- 缩写首现（含复数形式）、疑似过去时和句长分布
 
-Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。
+Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；紧跟数字的 `%` 视为百分号而非 LaTeX 注释。
 
 ### 润色前后比对
 
@@ -136,6 +136,8 @@ python scripts/check_draft.py original.tex --compare edited.tex
 `--compare` 只执行受保护对象比对，不包含普通文风检查。验证润色稿时应先对修改稿运行常规检查，再运行原稿与修改稿的 `--compare`。
 
 > 注意：机械比对不能证明语义完全不变。即使返回成功，仍需人工核对主张强度、跨句指代、符号含义及数字与结论的绑定关系。
+
+中译英时 `--compare` 仍可核对数字、公式与引用的内容和顺序，但绑定线索只采集拉丁字母词，中文原稿一侧恒为空，因此每个对象都会进入人工复核清单。
 
 ### 退出码
 
@@ -168,7 +170,7 @@ python -m unittest discover -s scripts -p "test_*.py"
 python -m py_compile scripts/check_draft.py scripts/test_check_draft.py
 ```
 
-当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、货币与公式区分、输入编码以及 CLI 退出码。
+当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、货币与公式区分、百分号与 LaTeX 注释的区分、Markdown 分隔行与破折号的区分、复数写法与复数缩写、输入编码以及 CLI 退出码。
 
 维护时遵循以下原则：
 

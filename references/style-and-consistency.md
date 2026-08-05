@@ -14,7 +14,7 @@
 |---|---|---|
 | 插入补充说明 | 括号 | `Three baselines—LDA, DTM, and HPF—were used` → `Three baselines (LDA, DTM, and HPF) are used` |
 | 引出解释或展开 | 冒号 | `The reason is simple—the data are sparse` → `The reason is simple: the data are sparse` |
-| 连接两个完整小句 | 分号或拆句 | `The model converges quickly—it requires no sampling` → `The model converges quickly because it requires no sampling.` |
+| 连接两个完整小句 | 分号或拆句 | `The model converges quickly—it requires no sampling` → `The model converges quickly; it requires no sampling.` |
 | 强调性停顿 | 直接删除或改用逗号 | `This is, in fact, the key trade-off` |
 | 列举后的总结 | 拆成两句 | `Sparsity, dynamics, and heterogeneity all matter. Our design addresses each.` |
 
@@ -47,7 +47,7 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 | in the realm of / in the context of（滥用时） | in |
 | a wide array of / a myriad of | various、many、或直接给数量 |
 | the vast majority of | most |
-| prior to / subsequent to | before / after |
+| prior to / subsequent to（无明确时序含义时） | before / after |
 | at this point in time | now、currently |
 | in spite of the fact that | although |
 | has the ability to | can |
@@ -140,7 +140,7 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 - **困惑度（perplexity）**：文本对语言模型的可预测程度。模型倾向于选高概率词，所以生成文本的用词比人类更"意料之中"。
 - **突发度（burstiness）**：句长与句式在全文中的变化幅度。人类在长短句之间来回切换，模型倾向于保持均匀。
 
-词表会随模型版本和使用习惯变化，因此固定名单只能供人工复核。出现某个合法词或短语本身不构成问题，也不得仅凭它改写句子；应结合上下文判断是否缺乏具体所指、机械重复或掩盖了可验证内容。`scripts/check_draft.py` 不扫描这些词和短语。
+词表会随模型版本和使用习惯变化，因此固定名单只能供人工复核。出现某个合法词或短语本身不构成问题，也不得仅凭它改写句子；应结合上下文判断是否缺乏具体所指、机械重复或掩盖了可验证内容。`scripts/check_draft.py` 不把这些词和短语判为必改项。
 
 **不要以通过检测器为目标。**学术写作本身具有较强的格式约束，自动检测可能误判正式文本。正确目标是提高内容的具体性、论证质量和阅读自然度；检测结果不能作为唯一判断依据。
 
@@ -152,7 +152,7 @@ delve、underscore（作动词）、tapestry、intricate、pivotal、multifacete
 
 ### 人工复核线索：短语
 
-`It is worth noting that` · `It is important to note that` · `plays a crucial role in` · `sheds light on` · `paves the way for` · `In today's rapidly evolving landscape` · `At its core` · `This raises an important question` · `In conclusion`（结论段直接讲结论）· `Overall,`（作段首万能开头时）
+`It is worth noting that` · `plays a crucial role in` · `sheds light on` · `paves the way for` · `In today's rapidly evolving landscape` · `At its core` · `This raises an important question` · `In conclusion`（结论段直接讲结论）· `Overall,`（作段首万能开头时）
 
 ### 结构性特征
 
@@ -231,5 +231,5 @@ consist of · result in · differ from · comparable to · superior to · contri
 
 分词短语的逻辑主语必须是主句主语。
 
-- 错：`Using a GPU server, the estimation took 30 hours.`（服务器不会做估计）
+- 错：`Using a GPU server, the estimation takes 30 hours.`（服务器不会做估计）
 - 对：`Using a GPU server, we complete the estimation in 30 hours.`
