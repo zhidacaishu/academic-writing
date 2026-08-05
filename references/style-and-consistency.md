@@ -73,10 +73,10 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 ### 结构要简单
 
 1. 一句表达一个主要主张。两个并列主张可分别成句，避免仅用 and 或分号强行连接。
-2. 主语和谓语动词之间尽量不超过 10 个词。中文允许较长主语，直译后谓语出现过晚会增加句法解析难度。
-3. 嵌套从句最多一层。从句里再套从句，中文能读懂，英文读者要回读。
-4. 连用的介词短语不超过三个。`the effect of the number of highlights of the matches in the league on the engagement of the players` 这类链条要拆开重写。
-5. 不用超过 15 词的状语从句开头。先给主句，再补条件。
+2. 缩短主语与谓语动词之间的距离。中文允许较长主语，直译后谓语出现过晚会增加句法解析难度。
+3. 避免多层嵌套从句。从句里再套从句，中文能读懂，英文读者要回读。
+4. 避免长串连用的介词短语。`the effect of the number of highlights of the matches in the league on the engagement of the players` 这类链条要拆开重写。
+5. 避免用过长的状语从句开头。先给主句，再补条件。
 
 ### 长度要有变化
 
@@ -173,20 +173,18 @@ delve、underscore（作动词）、tapestry、intricate、pivotal、multifacete
 - **对不确定的东西和确定的东西用同样强度的措辞。**
 - **无信息增量的复述。**在回答前重复问题，但没有提供新的分析。
 
-解决方法是补充具体内容：提供数字、条件和反例，并说明为何不采用替代方案。提高内容具体性通常可以减少模型化表达特征。
+解决方法见第六节。提高内容具体性通常可以减少模型化表达特征。
 
 ---
 
 ## 六、说服力
 
-方法类论文的说服力不来自形容词，来自六件事。
+方法类论文的说服力不来自形容词，来自四件事。
 
-1. **用数字代替形容词。**“效率很高”缺乏可核查依据；“在 50 万用户的数据上训练约 30 小时，迁移到新用户只需重估一组参数”提供了具体证据。
+1. **用数字、对比和条件代替形容词。**“效率很高”缺乏可核查依据；“在 50 万用户的数据上训练约 30 小时，迁移到新用户只需重估一组参数”提供了具体证据。避免仅使用主观判断，`Our method achieves 0.2855 versus 0.2549 for the best baseline` 比 `Our method is clearly better` 更具可验证性。“我们的方法更好”同样缺乏可核查证据；“在稀疏度更高的全商品集上，我们的性能下降幅度为 23%，而其他方法普遍超过 40%”明确了条件和比较结果。
 2. **预先回应替代解释。**模型章节的每个组件都应回答“为什么不用更简单的做法”。句式：`One might expect that a simpler X would suffice. However, X cannot handle Y because Z.`
 3. **声称与证据配对。**写 `Our model is interpretable` 而不指向具体图表或案例，不能形成可核查的证据。写 `The learned latent states align with the funnel stages (Figure 4)` 则建立了证据对应关系。
 4. **主动划界换取信任。**承认方法做不到的事，读者才会相信你说做得到的事。
-5. **用对比和证据支持结论。**避免仅使用主观判断。`Our method achieves 0.2855 versus 0.2549 for the best baseline` 比 `Our method is clearly better` 更具可验证性。
-6. **具体到组件和条件。**“我们的方法更好”缺乏可核查证据；“在稀疏度更高的全商品集上，我们的性能下降幅度为 23%，而其他方法普遍超过 40%”明确了条件和比较结果。
 
 ---
 
@@ -218,7 +216,7 @@ cn-en-transfer.md 已覆盖冠词、不可数名词、逗号粘连、话题述�
 
 consist of · result in · differ from · comparable to · superior to · contribute to · account for · in contrast to（或 with）· compared with · based on · consistent with · subject to
 
-`superior than` 和严格比较语境下的 `compared to` 都是常见错误。
+`superior than` 是常见错误（应为 `superior to`）。`compared to` 与 `compared with` 在本领域期刊中都通行，不必互改。
 
 ### 主谓一致
 

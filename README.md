@@ -113,10 +113,10 @@ python scripts/check_draft.py draft.tex
 
 - 中文字符、全角标点和长破折号残留
 - 确定性中式表达与上下文相关措辞
-- 写法、拼写和数字格式一致性
-- 缩写首现（含复数形式）、疑似过去时和句长分布
+- 英美拼写混用与数字格式一致性；同一概念的表层写法变体只作人工复核项
+- 缩写首现（含复数形式）、疑似过去时、句长分布与相邻段首的连接词链条
 
-Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；紧跟数字的 `%` 视为百分号而非 LaTeX 注释。
+Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；紧跟数字的 `%` 视为百分号而非 LaTeX 注释；弯引号只在 LaTeX 稿中提示，`.md` 与 `.txt` 稿不报。
 
 ### 润色前后比对
 
@@ -170,7 +170,7 @@ python -m unittest discover -s scripts -p "test_*.py"
 python -m py_compile scripts/check_draft.py scripts/test_check_draft.py
 ```
 
-当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、货币与公式区分、百分号与 LaTeX 注释的区分、Markdown 分隔行与破折号的区分、复数写法与复数缩写、输入编码以及 CLI 退出码。
+当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、货币与公式区分、百分号与 LaTeX 注释的区分、Markdown 分隔行与破折号的区分、复数写法与复数缩写、连接词链条的相邻段首判定、弯引号的 LaTeX 限定、表层写法变体与英美拼写混用的分级、输入编码以及 CLI 退出码。
 
 维护时遵循以下原则：
 

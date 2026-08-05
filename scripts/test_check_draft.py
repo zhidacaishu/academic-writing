@@ -209,7 +209,7 @@ class ProseViewTests(unittest.TestCase):
             "Gauss–Newton optimization is used."
         )
         report = check_draft.run_checks(text, is_latex=False)
-        self.assertNotIn("写法不一致", report.hard)
+        self.assertNotIn("写法不一致", report.soft)
         self.assertNotIn("en dash 用于句内", report.soft)
 
     def test_formula_mask_preserves_real_line_number(self):
@@ -229,6 +229,32 @@ class ProseViewTests(unittest.TestCase):
         text = " ".join(["word"] * 60) + "."
         report = check_draft.run_checks(text, is_latex=False)
         self.assertIn("超长句", report.soft)
+
+    def test_connective_chain_needs_adjacent_paragraph_starts(self):
+        chained = (
+            "We estimate the model on public data.\n\n"
+            "Moreover, the effect persists in the holdout sample.\n\n"
+            "In addition, the ranking of the baselines is stable.\n"
+        )
+        report = check_draft.run_checks(chained, is_latex=False)
+        self.assertIn("连接词堆叠", report.soft)
+        item = report.soft["连接词堆叠"][0]
+        self.assertIn("L3 'moreover'", item)
+        self.assertIn("L5 'in addition'", item)
+        apart = (
+            "Moreover, the effect persists in the holdout sample.\n\n"
+            "The ranking of the baselines is stable.\n\n"
+            "Furthermore, the remaining gain is small.\n"
+        )
+        report = check_draft.run_checks(apart, is_latex=False)
+        self.assertNotIn("连接词堆叠", report.soft)
+        however = (
+            "However, the effect is small.\n\n"
+            "Estimates remain stable. However, standard errors grow.\n\n"
+            "However, the ranking is unchanged.\n"
+        )
+        report = check_draft.run_checks(however, is_latex=False)
+        self.assertNotIn("连接词堆叠", report.soft)
 
     def test_markdown_source_regions_are_not_checked_as_prose(self):
         cases = [
@@ -289,15 +315,41 @@ class ProseViewTests(unittest.TestCase):
 
     def test_plural_variants_and_acronyms_are_checked(self):
         report = check_draft.run_checks(
-            "We evaluate on two data sets. Both datasets are public.", is_latex=False
+            "We tune two hyperparameters. Each hyper-parameter matters.",
+            is_latex=False,
         )
-        self.assertIn("写法不一致", report.hard)
+        self.assertIn("写法不一致", report.soft)
         report = check_draft.run_checks("We study SOEs and TMTs.", is_latex=False)
         self.assertEqual(len(report.soft["缩写首现未定义"]), 2)
         report = check_draft.run_checks(
             "We study state-owned enterprises (SOEs). SOEs differ.", is_latex=False
         )
         self.assertNotIn("缩写首现未定义", report.soft)
+
+    def test_variant_spelling_is_softer_than_british_american_mix(self):
+        report = check_draft.run_checks(
+            "We tune the hyperparameter and report every hyper-parameter.",
+            is_latex=False,
+        )
+        self.assertIn("写法不一致", report.soft)
+        self.assertNotIn("写法不一致", report.hard)
+        report = check_draft.run_checks(
+            "We analyze the sample and then analyse the residuals.", is_latex=False
+        )
+        self.assertIn("英美拼写混用", report.hard)
+
+    def test_curly_quotes_are_reported_only_for_latex(self):
+        draft = "We call this a “regime” of behavior."
+        report = check_draft.run_checks(draft, is_latex=True)
+        self.assertIn("弯引号", report.soft)
+        report = check_draft.run_checks(draft, is_latex=False, is_markdown=True)
+        self.assertNotIn("弯引号", report.soft)
+        report = check_draft.run_checks(draft)
+        self.assertNotIn("弯引号", report.soft)
+        report = check_draft.run_checks(
+            r"We follow \citep{du2016} and call this a “regime”."
+        )
+        self.assertIn("弯引号", report.soft)
 
     def test_latex_quotes_do_not_trigger_markdown_inline_code(self):
         draft = "We call a `mode' of behavior a `regime' in this study."

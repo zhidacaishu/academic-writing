@@ -57,7 +57,7 @@
 - 只有当设计可以合理拆分，且论文声称某组件具有增量作用时，才要求消融。不可合理移除的整体设计、形式性质、可解释性、效率或部署成效，应分别采用定理或证明、仿真、敏感性分析、案例或用户研究、运行时间或复杂度分析、现场评价等合适证据。
 - 若不同层级不是一一对应，列出“挑战或目标—设计—贡献声称—评价证据—适用边界”映射表。
 
-Peffers et al. (2007) 的 DSRM 要求问题识别、解法目标、设计、展示与评价形成连贯过程，但不要求各阶段产生相同数量的条目。ISR 2024 的设计研究编辑文也明确反对将不同 artifact 强行装入单一模板，并强调评价方式应匹配 artifact 与知识声称。[Peffers et al. (2007)](https://doi.org/10.2753/MIS0742-1222240302)；[Abbasi et al. (2024)](https://pubsonline.informs.org/doi/full/10.1287/isre.2024.editorial.v35.n2)。
+依据：[Peffers et al. (2007)](https://doi.org/10.2753/MIS0742-1222240302)，DSRM 各阶段须形成连贯过程，但不要求条目数量相同；[Abbasi et al. (2024)](https://pubsonline.informs.org/doi/full/10.1287/isre.2024.editorial.v35.n2)，反对把不同 artifact 装入单一模板，评价方式应匹配 artifact 与知识声称。
 
 常见的挑战类型（供对照，不是模板）：
 
@@ -110,7 +110,7 @@ Peffers et al. (2007) 的 DSRM 要求问题识别、解法目标、设计、展�
 
 没有具名理论不等于没有知识基础。稿件仍须说明真实问题与利益相关者需求、既有 artifact 和设计知识、领域事实与技术或制度约束、关键设计理由及备选方案，并提供与声称相匹配的严谨评价。证据允许时可以提炼初步设计原则及适用边界，但不得声称已经形成或扩展了理论。若目标期刊明显要求更强的理论贡献，应提示定位或选刊风险，不能补写不相关理论。
 
-Gregor and Jones (2007) 的完整 IS design theory 包含 justificatory knowledge；这套要求适用于声称 design theory 的成果，不等于每篇 artifact 论文都必须达到该层级。Gregor and Hevner (2013) 区分 artifact、初步设计知识与成熟设计理论；ISR 2024 编辑文进一步承认没有 formal theory-guided design 的 emergent design insights，并提醒不要强套 artifact 模板。[Gregor and Jones (2007)](https://doi.org/10.17705/1jais.00129)；[Gregor and Hevner (2013)](https://doi.org/10.25300/MISQ/2013/37.2.01)；[Abbasi et al. (2024)](https://pubsonline.informs.org/doi/full/10.1287/isre.2024.editorial.v35.n2)。
+依据：[Gregor and Jones (2007)](https://doi.org/10.17705/1jais.00129)，完整 IS design theory 包含 justificatory knowledge，该要求只适用于声称 design theory 的成果；[Gregor and Hevner (2013)](https://doi.org/10.25300/MISQ/2013/37.2.01)，区分 artifact、初步设计知识与成熟设计理论；[Abbasi et al. (2024)](https://pubsonline.informs.org/doi/full/10.1287/isre.2024.editorial.v35.n2)，承认没有 formal theory-guided design 的 emergent design insights。
 
 ---
 
