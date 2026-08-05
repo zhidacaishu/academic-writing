@@ -12,7 +12,7 @@
 
 ## 一、用词对照表
 
-左列是中文原意，中列是直译（应避免），右列是英文期刊惯用。
+左列是中文原意，中列是直译（应避免），右列是英文期刊惯用。中列只收真正会被判为错误或不地道的写法；本身成立、只是不够地道的写法集中在本节末尾。
 
 ### 研究对象与主体
 
@@ -20,7 +20,7 @@
 |---|---|---|
 | 企业 | enterprise | firm（管理、战略、金融）；company；business（泛指） |
 | 上市公司 | listed company | listed firms；publicly traded firms；A 股用 A-share listed firms |
-| 国有企业 | state-owned enterprise（可用但注意） | state-owned enterprises (SOEs)，首次出现给全称加缩写 |
+| 国有企业 | state owned enterprise（漏连字符） | state-owned enterprises (SOEs)，首次出现给全称加缩写 |
 | 员工 | staff（不可数，易错） | employees；workers |
 | 高管 | senior manager | executives；top management team (TMT) |
 | 学者们 | scholars（滥用） | prior research；prior studies；a growing literature |
@@ -32,8 +32,6 @@
 |---|---|---|
 | 本文提出的方法 | the method proposed by this paper | our proposed method；our approach |
 | 框架 | frame | framework |
-| 隐变量 / 潜变量 | hidden variable（口语） | latent variable |
-| 隐状态 | hidden state（RNN 语境正确） | latent state（统计模型）；hidden state（神经网络） |
 | 生成过程 | generate process | generative process |
 | 先验 / 后验 | prior probability（冗余） | prior；posterior |
 | 超参数 | super parameter | hyperparameter（一个词，不加连字符） |
@@ -43,7 +41,7 @@
 | 过拟合 | over fitting | overfitting |
 | 稀疏性 | sparse problem | sparsity；data sparsity |
 | 冷启动 | cold boot | cold-start problem |
-| 长尾 | long tail（正确） | long-tail items / accounts（作定语时加连字符） |
+| 长尾 | long tail items（作定语漏连字符） | long-tail items / accounts；the long tail（作名词） |
 | 可解释性 | explanatory | interpretability（模型可读）；explainability（可给出解释） |
 | 泛化能力 | generalization ability | generalizability；generalization performance |
 | 计算复杂度 | calculate complexity | computational complexity；time complexity |
@@ -55,20 +53,16 @@
 
 | 中文 | 避免 | 惯用 |
 |---|---|---|
-| 基线方法 | baseline method（正确） | baselines；benchmark methods |
 | 对比实验 | comparison experiment | comparison with baselines |
-| 消融实验 | ablation experiment（可用） | ablation study；ablation analysis |
 | 敏感性分析 | sensitivity analyse | sensitivity analysis |
 | 稳健性检验 | robust test | robustness checks |
-| 数据集 | data set / dataset（两种都通行） | 同一篇内保持一致；INFORMS 系多用 data set |
 | 训练集 / 验证集 / 测试集 | train set | training set；validation set；test set |
 | 划分 | divide the data | split the data into...；partition |
 | 十折交叉验证 | ten fold cross validation | 10-fold cross-validation |
 | 留一法 | leave one out | leave-one-out evaluation |
 | 负采样 | negative sample（名词误用） | negative sampling（方法）；negative samples（样本） |
-| 命中率 | hit rate（正确） | hit ratio (HR@K)；conversion rate (CR@N) |
 | 提升 / 改进幅度 | promote 15% | improve by 15%；a 15% improvement over |
-| 显著优于 | significantly better（无检验时误用） | 有检验才写 significantly；否则写 consistently outperforms |
+| 显著优于 | significantly better（无检验时误用） | 有检验才写 significantly；否则按第三节的强度阶梯选择 |
 | 达到最优 | reach the best | achieves the best performance |
 | 运行时间 | run time | execution time；runtime |
 | 复现 | repeat | replicate；reproduce |
@@ -79,7 +73,6 @@
 
 | 中文 | 避免 | 惯用 |
 |---|---|---|
-| 本文 / 本研究 | this paper（可用但偏弱） | this study；本领域期刊普遍接受 we |
 | 得出结论 | draw the conclusion | find；show；document；provide evidence that |
 | 实证结果表明 | The empirical results indicate that | We find that；Results show that |
 | 数据来源于 | The data comes from | We draw on data from；Data are drawn from |
@@ -90,6 +83,17 @@
 | 研究展望 | research prospect | directions for future research |
 | 研究不足 | research deficiency | limitations |
 | 丰富了……文献 | enriches the literature | contributes to；extends；advances（后接具体是怎么扩展的） |
+
+### 视语境保留，不要一律替换
+
+以下写法本身成立，只在特定语境下才需要调整，不要仅因“看起来不地道”就替换：
+
+- `hidden variable` / `hidden state`：神经网络语境正确；统计模型用 latent variable / latent state。
+- `ablation experiment`：可用，`ablation study` 更常见；全文统一即可。
+- `baseline method`：正确，`baselines` 更简洁。
+- `hit rate` 与 `hit ratio`：都通行，选定一个并与指标缩写（HR@K）保持一致。
+- `data set` 与 `dataset`：都通行，INFORMS 系多用 data set；全文统一。
+- `this paper`：可用但偏弱，`this study` 或 `we` 更有力。
 
 ### 高频冗余表达（删除或改为具体表述）
 
@@ -153,21 +157,11 @@
 
 ### 时态
 
-| 位置 | 时态 |
-|---|---|
-| 全篇默认 | **现在时** |
-| 引言中的既有研究 | 现在时（`Prior research suggests`）或现在完成时（`Prior research has shown`） |
-| 理论基础 | 现在时（`Engagement theory suggests that...`） |
-| 模型描述 | 现在时（`Our model assumes`、`The attention mechanism learns`） |
-| 数据与实验 | 现在时（`We use five years of clickstream data`、`We conduct a five-fold cross-validation`、`We remove users with fewer than ten records`） |
-| 图表描述 | 现在时（`Table 3 reports`、`Figure 5 shows`） |
-| 讨论与结论 | 现在时 |
+**全篇统一使用现在时。**既有研究、理论基础、模型描述、数据与实验流程、图表描述、讨论与结论都用现在时；只有引言概述既有研究时可以用现在完成时（`Prior research has shown`）。
 
-**除下述例外外，默认使用现在时。**模型是持续存在的构件，实验流程是可复现的程序，因此两者均用现在时描述。中文稿常把“我们构建了……模型”“我们收集了……数据”直译为过去时，从而将方法描述误写为一次性历史叙述。
+模型是持续存在的构件，实验流程是可复现的程序，因此都写成现在时：`Our model assumes`、`We use five years of clickstream data`、`We conduct a 10-fold cross-validation`、`Estimation takes about 30 hours`、`Table 3 reports`。中文稿常把“我们构建了……模型”“我们收集了……数据”直译为过去时，从而把方法描述写成一次性历史叙述。
 
-过去时用于**一次性的历史事实**，即发生在特定时间且不作为可复现程序描述的事件。例如数据覆盖的时间区间（`The data set spans August 2014 to February 2015`，句子本身仍用现在时）、模型训练实际耗费的时长（`Estimation took about 30 hours`），以及特定时点完成的一次性操作（`We collected match statistics for the same period`）。如果全文出现多处过去时，应逐项确认其是否属于此类事实。
-
-判断方法：若句子描述可复现的程序，则使用现在时；若描述特定时点发生的一次性事实，则使用过去时。
+时间跨度由名词短语承担，句子本身仍是现在时：`The data set spans August 2014 to February 2015`、`We collect match statistics for the same period`。稿中出现的过去时应逐处改为现在时。
 
 ### 主动与被动
 
@@ -185,6 +179,7 @@
 Our method is superior to X.                              ← 无条件断言，通常不使用
 Our method significantly outperforms X.                   ← 必须有统计检验支撑
 Our method outperforms X.                                 ← 需限定范围
+Our method consistently outperforms X.                    ← 需多个设置都成立
 On both data sets, our method outperforms all baselines.  ← 安全
 Our method achieves the best performance among the
   compared baselines on both data sets.                   ← 最安全
@@ -199,8 +194,8 @@ Our method achieves the best performance among the
 模型章节和管理启示中可能同时出现三类不同声明：现实世界中的因果关系、数据中的统计关联，以及模型内部表示的依赖关系。三者需要严格区分：
 
 ```
-X causes Y
-X has a significant impact on Y            ← 因果声明
+X causes Y                                  ← 因果声明
+X has a significant impact on Y             ← 因果声明
 X drives / increases Y                      ← 因果声明
 X is positively associated with Y           ← 关联，安全
 Our model captures the dependence of Y on X ← 描述模型，安全

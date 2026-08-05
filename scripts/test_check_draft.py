@@ -262,6 +262,52 @@ class ProseViewTests(unittest.TestCase):
                 math_view = check_draft.build_prose_view(math, is_latex=False)
                 self.assertNotIn(math.split("$")[1], math_view)
 
+    def test_percent_sign_is_not_a_latex_comment(self):
+        draft = "Recall improves by 15% over the baseline \\citep{du2016}."
+        view = check_draft.build_prose_view(draft, *check_draft.syntax_hints(
+            ("draft.md",), (draft,)
+        ))
+        self.assertIn("over the baseline", view)
+        self.assertNotIn("keep", check_draft.build_prose_view(
+            "Text. % keep this", is_latex=True
+        ))
+
+    def test_markdown_rule_lines_are_not_em_dashes(self):
+        clean = "| M | HR |\n|---|---|\n| A | 0.2 |\n\n---\n\nHeading\n---\n\nText."
+        report = check_draft.run_checks(clean, is_markdown=True)
+        self.assertNotIn("长破折号", report.hard)
+        report = check_draft.run_checks("A model---the best---wins.", is_markdown=True)
+        self.assertIn("长破折号", report.hard)
+
+    def test_abbreviated_reference_is_not_a_missing_leading_zero(self):
+        report = check_draft.run_checks(
+            "See Fig.5 for details. The threshold is 0.5.", is_latex=False
+        )
+        self.assertNotIn("数字格式", report.hard)
+        report = check_draft.run_checks("Values are .5 and 0.5.", is_latex=False)
+        self.assertIn("数字格式", report.hard)
+
+    def test_plural_variants_and_acronyms_are_checked(self):
+        report = check_draft.run_checks(
+            "We evaluate on two data sets. Both datasets are public.", is_latex=False
+        )
+        self.assertIn("写法不一致", report.hard)
+        report = check_draft.run_checks("We study SOEs and TMTs.", is_latex=False)
+        self.assertEqual(len(report.soft["缩写首现未定义"]), 2)
+        report = check_draft.run_checks(
+            "We study state-owned enterprises (SOEs). SOEs differ.", is_latex=False
+        )
+        self.assertNotIn("缩写首现未定义", report.soft)
+
+    def test_latex_quotes_do_not_trigger_markdown_inline_code(self):
+        draft = "We call a `mode' of behavior a `regime' in this study."
+        is_latex, is_markdown = check_draft.syntax_hints(("draft.tex",), (draft,))
+        self.assertFalse(is_markdown)
+        self.assertIn(
+            "of behavior",
+            check_draft.build_prose_view(draft, is_latex, is_markdown),
+        )
+
     def test_contextual_wording_is_not_a_hard_failure(self):
         report = check_draft.run_checks(
             "Prior to estimation, the listed company model includes a hidden variable.",
