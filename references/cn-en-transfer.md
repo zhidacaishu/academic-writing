@@ -89,11 +89,9 @@
 以下写法本身成立，只在特定语境下才需要调整，不要仅因“看起来不地道”就替换：
 
 - `hidden variable` / `hidden state`：神经网络语境正确；统计模型用 latent variable / latent state。
-- `ablation experiment`：可用，`ablation study` 更常见；全文统一即可。
-- `baseline method`：正确，`baselines` 更简洁。
-- `hit rate` 与 `hit ratio`：都通行，选定一个并与指标缩写（HR@K）保持一致。
-- `data set` 与 `dataset`：都通行，INFORMS 系多用 data set；全文统一。
 - `this paper`：可用但偏弱，`this study` 或 `we` 更有力。
+
+不要为“哪种写法更常见、更简洁”这类没有读者可见后果的表层变体制定偏好；这类判断消耗注意力却不改变稿件质量。同篇内是否前后统一是另一回事，见 `style-and-consistency.md` 第四节。
 
 ### 高频冗余表达（删除或改为具体表述）
 
@@ -123,7 +121,6 @@
 - `literatures` 是常见的中式英语用法 → `the literature` 或 `prior studies`
 - `researches` → `research` 或 `studies`
 - `data`：作复数（`data are`）更正式，作单数在本领域也常见；同一篇内保持一致即可
-- `data set` 与 `dataset` 两种写法都通行，INFORMS 系多用 `data set`；全文统一
 
 ### 逗号粘连
 
@@ -161,7 +158,9 @@
 
 模型是持续存在的构件，实验流程是可复现的程序，因此都写成现在时：`Our model assumes`、`We use five years of clickstream data`、`We conduct a 10-fold cross-validation`、`Estimation takes about 30 hours`、`Table 3 reports`。中文稿常把“我们构建了……模型”“我们收集了……数据”直译为过去时，从而把方法描述写成一次性历史叙述。
 
-时间跨度由名词短语承担，句子本身仍是现在时：`The data set spans August 2014 to February 2015`、`We collect match statistics for the same period`。稿中出现的过去时应逐处改为现在时。
+时间跨度由名词短语承担，句子本身仍是现在时：`The data set spans August 2014 to February 2015`、`We collect match statistics for the same period`。除下述例外，稿中出现的过去时应逐处改为现在时。
+
+唯一例外是陈述一次真实发生过的一次性事件本身（例如某次促销活动、某次田野实验的实施），这类事件可用过去时；对该事件的数据处理、建模、实验流程与结果仍然用现在时。
 
 ### 主动与被动
 
@@ -245,7 +244,7 @@ Our model captures the dependence of Y on X ← 描述模型，安全
 
 ### 段落长度
 
-英文期刊正文段落通常包含 4–8 句。中译英稿常出现只有两句的短段，导致论证过度分散；也可能出现整页不分段的长段，增加阅读负担。合并或拆分时以“一段一个论点”为准。
+段落长度随内容变化，不必追求固定句数。中译英稿常出现只有两句的短段，导致论证过度分散；也可能出现整页不分段的长段，增加阅读负担。合并或拆分时以“一段一个论点”为准。
 
 ---
 

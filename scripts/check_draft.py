@@ -81,7 +81,6 @@ OVERCLAIM = [
 ]
 # 同一概念的写法变体。同篇内混用即报。
 VARIANT_GROUPS = [
-    ["data set", "dataset"],
     ["hyperparameter", "hyper-parameter", "hyper parameter"],
     ["overfitting", "over-fitting"],
     ["cross-validation", "cross validation"],
@@ -780,13 +779,16 @@ def check_dashes(text, rep, is_markdown=False):
                 f"L{line_of(text, m.start())}: en dash 只用于数字区间与复合专名 …{context(text, m.start())}…")
 
 
-def check_cjk_residue(text, rep):
+def check_cjk_residue(text, rep, is_latex=False):
     for m in re.finditer(f"[{CJK_PUNCT}]", text):
         rep.add("hard", "全角标点残留",
                 f"L{line_of(text, m.start())}: '{m.group()}' …{context(text, m.start())}…")
     for m in CJK_CHAR.finditer(text):
         rep.add("hard", "中文字符残留",
                 f"L{line_of(text, m.start())}: …{context(text, m.start())}…")
+    # 弯引号只有在 LaTeX 里才是问题（正文应写 `` ''）；.md/.txt 稿件里是正常写法。
+    if not is_latex:
+        return
     for m in re.finditer(r"[\u201c\u201d\u2018\u2019]", text):
         rep.add("soft", "弯引号",
                 f"L{line_of(text, m.start())}: 确认是否符合目标格式（LaTeX 用 `` ''） "
@@ -827,7 +829,7 @@ def check_consistency(prose, rep):
         used = {k: v for k, v in found.items() if v}
         if len(used) > 1:
             detail = "、".join(f"{k}×{v}" for k, v in used.items())
-            rep.add("hard", "写法不一致", f"{detail}  → 全文二选一")
+            rep.add("soft", "写法不一致", f"{detail}  → 全文二选一")
     for us, uk in SPELLING_PAIRS:
         a = len(re.findall(rf"\b{us}\w*\b", low))
         b = len(re.findall(rf"\b{uk}\w*\b", low))
@@ -873,6 +875,26 @@ def check_sentences(prose, rep):
                 "soft", "超长句",
                 f"L{line_of(prose, start)}: {length} 词：{sentence[:80]}…",
             )
+    # 规则是「连接词链条」：这些词连续出现在相邻段首。全文累计次数不构成问题。
+    seps = list(re.finditer(r"\n[ \t]*\n", prose))
+    para_starts = [0] + [sep.end() for sep in seps]
+    para_ends = [sep.start() for sep in seps] + [len(prose)]
+    lead = re.compile(
+        r"\s*\b(moreover|furthermore|additionally|besides|in addition)\b", flags=re.I
+    )
+    heads = []
+    for start, end in zip(para_starts, para_ends):
+        m = lead.match(prose, start, end)
+        heads.append((line_of(prose, m.start(1)), m.group(1).lower()) if m else None)
+    run = []
+    for head in heads + [None]:
+        if head:
+            run.append(head)
+            continue
+        if len(run) > 1:
+            detail = "、".join(f"L{line} '{word}'" for line, word in run)
+            rep.add("soft", "连接词堆叠", f"{len(run)} 个相邻段落以连接词开头：{detail}")
+        run = []
     if len(lengths) < 8:
         return
     mean = statistics.mean(lengths)
@@ -886,14 +908,6 @@ def check_sentences(prose, rep):
         rep.add("soft", "句长分布", "变异系数偏低：句长分布可能过于均匀，需结合语境人工判断")
     if band > 0.55:
         rep.add("soft", "句长分布", "超过半数句子的长度集中在 15–25 词：应根据内容关系合并短句或拆分长句")
-    starts = Counter()
-    for s in sents:
-        w = s.split()
-        if w:
-            starts[w[0].strip(",").lower()] += 1
-    for w in ("moreover", "furthermore", "additionally", "besides", "however"):
-        if starts[w] >= 3:
-            rep.add("soft", "连接词堆叠", f"{starts[w]} 句以 '{w.capitalize()}' 开头")
 
 
 def check_numbers(prose, rep):
@@ -1057,10 +1071,11 @@ def read(path):
 
 
 def run_checks(text, is_latex=None, is_markdown=False):
+    is_latex = infer_latex(text) if is_latex is None else is_latex
     prose = build_prose_view(text, is_latex, is_markdown)
     rep = Report()
     check_dashes(prose, rep, is_markdown)
-    check_cjk_residue(prose, rep)
+    check_cjk_residue(prose, rep, is_latex)
     check_wording(prose, rep)
     check_consistency(prose, rep)
     check_acronyms(prose, rep)
