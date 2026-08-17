@@ -13,13 +13,15 @@
 - 中译英和已有英文稿润色
 - 贡献、结构、逻辑及审稿意见诊断
 - UTF-8 编码的 `.txt`、`.md` 和 `.tex` 稿件
+- `.docx` 稿件：抽取正文散文后处理，交付物为纯文本或 Markdown，不回写原文件
 
 ### 不适合处理
 
 - 与设计科学或 artifact-centered 方法贡献无关的一般论文
 - 中文论文正文润色
 - 未经核实的文献、实验结果或机制解释生成
-- `.docx`、`.pdf`、图片等附件的抽取、OCR 或格式推断
+- `.pdf`、`.rtf`、图片与扫描件的抽取、OCR 或版式推断
+- `.docx` 中修订记录、批注、公式对象与图表位置的还原：抽取过程中一律丢失
 
 ## 工作模式
 
@@ -97,7 +99,7 @@ skill 内部通过 `${CLAUDE_SKILL_DIR}` 定位随附脚本，因此无论从哪
 根据这些中文要点起草英文摘要，不要编造实验结果或文献。
 ```
 
-对长稿，可以提供 UTF-8 编码的 `.txt`、`.md` 或 `.tex` 文件。完整润色不应因内部按小节处理而缩减最终交付范围。
+对长稿，可以提供 UTF-8 编码的 `.txt`、`.md` 或 `.tex` 文件，或 `.docx`（先抽取正文，见下）。完整润色不应因内部按小节处理而缩减最终交付范围。
 
 ## 机械检查器
 
@@ -106,7 +108,7 @@ skill 内部通过 `${CLAUDE_SKILL_DIR}` 定位随附脚本，因此无论从哪
 ### 常规检查
 
 ```bash
-python scripts/check_draft.py draft.tex
+python3 scripts/check_draft.py draft.tex
 ```
 
 常规模式把结果分为两级：必改对应退出码 `1`，人工复核项对应退出码 `2`。
@@ -118,6 +120,7 @@ python scripts/check_draft.py draft.tex
 - 确定性中式学术英语与冗余结构
 - 英美拼写混用
 - 数字格式不一致：百分比小数位数、`.5` 与 `0.5` 混用
+- 未闭合的 Markdown 代码围栏：其后内容全部被屏蔽，须显式报出
 
 人工复核项（依赖语境，需要人判断）：
 
@@ -126,12 +129,16 @@ python scripts/check_draft.py draft.tex
 - 同一概念的表层写法变体、缩写首现（含复数形式）未定义、疑似过去时
 - 超长句、句长分布，以及相邻段首的连接词链条
 
-Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；紧跟数字的 `%` 视为百分号而非 LaTeX 注释；弯引号只在 LaTeX 稿中提示，`.md` 与 `.txt` 稿不报。
+Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；弯引号只在 LaTeX 稿中提示，`.md` 与 `.txt` 稿不报。
+
+**百分号与 LaTeX 注释的区分。**`15%`、`5 %` 与 `(%)` 均判定为百分号；Markdown 稿不做 `%` 注释剥离。判定在此处向保留正文一侧倾斜：误判为注释将屏蔽整行正文，检查器随之输出无效的“未发现问题”，其代价高于漏剥一处注释。
+
+**扫描优先级。**公式先于注释登记，因此 `\begin{equation}` 与 `\[...\]` 内部的 `%` 归属于公式，不会导致整个公式失去保护。注释仍优先于宏定义与图表结构，`% \newcommand{...}` 判定为注释。
 
 ### 润色前后比对
 
 ```bash
-python scripts/check_draft.py original.tex --compare edited.tex
+python3 scripts/check_draft.py original.tex --compare edited.tex
 ```
 
 `--compare` 按原文顺序核对：
@@ -147,7 +154,7 @@ python scripts/check_draft.py original.tex --compare edited.tex
 
 > 注意：机械比对不能证明语义完全不变。即使返回成功，仍需人工核对主张强度、跨句指代、符号含义及数字与结论的绑定关系。
 
-中译英时 `--compare` 仍可核对数字、公式与引用的内容和顺序，但绑定线索只采集拉丁字母词，中文原稿一侧恒为空，因此每个对象都会进入人工复核清单。
+中译英时 `--compare` 可核对数字、公式与引用的内容和顺序。数字的边界判定采用 ASCII 字符类而非 `\w`，因此紧贴汉字的 `提升5%`、`3个数据集` 均可提取；比对时 `5%` 与 LaTeX 的 `5\%` 归一为同一数值。但绑定线索只采集拉丁字母词，中文原稿一侧恒为空，因此每个对象仍会进入人工复核清单。该清单在此场景下属于结构性噪声，判断依据应取受保护对象的增删与换序。
 
 ### 退出码
 
@@ -161,26 +168,36 @@ python scripts/check_draft.py original.tex --compare edited.tex
 也可以通过标准输入检查文本：
 
 ```bash
-python scripts/check_draft.py - < draft.txt
+python3 scripts/check_draft.py - < draft.txt
 ```
 
 原稿和修改稿不能同时从同一标准输入读取。
+
+### 从 .docx 抽取正文
+
+```bash
+python3 scripts/check_draft.py paper.docx --extract > paper.md
+```
+
+`.docx` 的正文以 XML 存储于压缩包内，抽取由标准库 `zipfile` 完成，不涉及版式推断，也不引入第三方依赖。段落分隔保留为空行，XML 实体予以还原。修订记录、批注、公式对象、图表位置与样式一律丢失，因此抽取结果仅作为文本处理的输入，不回写原文件。
+
+`.docx` 亦可直接传入常规检查，脚本内部先抽取再检查。`--extract` 与 `--compare` 互斥。`.pdf`、`.rtf` 与图片仍不接受，返回退出码 `3`。
 
 ## 测试与维护
 
 运行全部回归测试：
 
 ```bash
-python -m unittest discover -s scripts -p "test_*.py"
+python3 -m unittest discover -s scripts -p "test_*.py"
 ```
 
 进行语法编译检查：
 
 ```bash
-python -m py_compile scripts/check_draft.py scripts/test_check_draft.py
+python3 -m py_compile scripts/check_draft.py scripts/test_check_draft.py
 ```
 
-当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、货币与公式区分、百分号与 LaTeX 注释的区分、Markdown 分隔行与破折号的区分、复数写法与复数缩写、连接词链条的相邻段首判定、弯引号的 LaTeX 限定、表层写法变体与英美拼写混用的分级、输入编码以及 CLI 退出码。
+当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、公式内注释不破坏公式保护、注释内 `$` 不算公式、货币与公式区分、百分号与 LaTeX 注释的区分（含 `5 %` 与 `(%)`）、未闭合围栏的报出、Markdown 分隔行与破折号的区分、紧贴汉字的数字提取与 `5%` / `5\%` 归一、句末 `-st.` 不被当作缩写、复数写法与复数缩写、连接词链条的相邻段首判定、弯引号的 LaTeX 限定、表层写法变体与英美拼写混用的分级、`.docx` 抽取与损坏包的报错、输入编码以及 CLI 退出码。
 
 维护时遵循以下原则：
 

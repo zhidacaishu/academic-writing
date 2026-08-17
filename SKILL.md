@@ -88,7 +88,15 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 `\caption{}`、`\section{}`、`\emph{}` 等文本参数属于可编辑散文，只改其中语言，不改命令结构。常见错误是把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式中的符号；这些修改可能导致编译失败或符号不一致。
 
-只接受两类输入：提示词中直接提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。不读取、不抽取、不 OCR，也不推断 `.docx`、`.pdf`、`.rtf`、图片或其他附件；只有不支持的附件时，请作者粘贴文本或导出为支持格式。脚本只用于检查最终英文稿。
+输入分三类处理。
+
+**直接接受**：提示词中提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。
+
+**抽取后接受**：`.docx`。该格式的正文以 XML 存储于压缩包内，抽取散文不涉及版式推断，通过 `check_draft.py --extract` 完成。处理前须向作者说明三项限制：修订记录、批注、公式对象与图表位置在抽取中丢失；交付物为纯文本或 Markdown，不回写原文件；公式与表格的抽取结果存疑时，标注为待作者核对。
+
+**不接受**：`.pdf`、`.rtf`、图片与扫描件。不读取、不抽取、不 OCR，也不推断版式。仅有此类附件时，请作者粘贴文本或导出为受支持的格式。
+
+脚本只用于检查最终英文稿。
 
 ### 长稿分块
 
@@ -110,9 +118,10 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 交付前运行纯标准库脚本；润色时另用 `--compare` 核对数字、公式、引用及 Markdown/LaTeX 受保护源码：
 
 ```bash
-python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
-python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
-python "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" - <<'EOF'   # 检查对话中粘贴的文本
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" paper.docx --extract > paper.md
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" - <<'EOF'   # 检查对话中粘贴的文本
 （英文正文）
 EOF
 ```
@@ -198,4 +207,4 @@ EOF
 | `references/style-and-consistency.md` | 处理任何英文成稿都要读：文风约束、一致性检查、模型化表达的人工复核、说服力 |
 | `references/design-science-genre.md` | 结构、可追溯闭环、理论适配、贡献层级、评估章节、摘要与标题、诊断判据 |
 | `references/cn-en-transfer.md` | 涉及中译英、中式英文、术语、句法、声称强度时 |
-| `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare` |
+| `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare`，`.docx` 先跑 `--extract` |

@@ -6,10 +6,33 @@ import io
 import sys
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 from unittest.mock import patch
 
 from scripts import check_draft
+
+
+DOCX_CONTENT_TYPES = (
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+    '<Default Extension="xml" ContentType="application/xml"/></Types>'
+)
+
+
+def write_docx(path, paragraphs):
+    body = "".join(
+        f"<w:p><w:r><w:t xml:space=\"preserve\">{text}</w:t></w:r></w:p>"
+        for text in paragraphs
+    )
+    document = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
+        f'2006/main"><w:body>{body}</w:body></w:document>'
+    )
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
+        archive.writestr("word/document.xml", document)
 
 
 class CompareTests(unittest.TestCase):
@@ -59,6 +82,51 @@ class CompareTests(unittest.TestCase):
             "\\newcommand{\\longmacro}[1]{\n  First #1\n}",
             "\\newcommand{\\longmacro}[1]{\n  Second #1\n}",
         )
+
+    def test_comment_inside_formula_does_not_disable_protection(self):
+        cases = [
+            (
+                "\\begin{equation}\n\\label{eq:d}\nq = a + b p % TODO\n\\end{equation}",
+                "\\begin{equation}\n\\label{eq:d}\nq = a + c p % TODO\n\\end{equation}",
+            ),
+            (
+                "\\begin{align}\nx &= y % note\n\\end{align}",
+                "\\begin{align}\nx &= z % note\n\\end{align}",
+            ),
+            (r"Value \[ x = y % note" "\n" r"\] here.",
+             r"Value \[ x = z % note" "\n" r"\] here."),
+        ]
+        for original, edited in cases:
+            with self.subTest(original=original):
+                report, status = check_draft.compare(original, edited, is_latex=True)
+                self.assertEqual(status, 1, report)
+        kinds = [
+            event.kind
+            for event in check_draft.collect_nonprose_events(cases[0][0], is_latex=True)
+        ]
+        self.assertIn("math", kinds)
+
+    def test_dollar_inside_a_comment_stays_a_comment(self):
+        events = check_draft.collect_nonprose_events(
+            "Text.\n% cost is $5$ here\nMore.", is_latex=True
+        )
+        self.assertEqual([event.kind for event in events], ["comment"])
+
+    def test_numbers_adjacent_to_chinese_are_extracted(self):
+        source = "我们在3个数据集上评估，召回率提升5%，样本量为12000。"
+        self.assertEqual(
+            [match.group() for match in check_draft.NUMBER_RE.finditer(source)],
+            ["3", "5%", "12000"],
+        )
+        edited = r"We use 4 data sets; recall improves by 9\%, with 21000 users."
+        _, status = check_draft.compare(source, edited)
+        self.assertEqual(status, 1)
+
+    def test_percent_escaping_alone_is_not_a_change(self):
+        _, status = check_draft.compare(r"Rate: 5\%.", "Rate: 5 %.")
+        self.assertEqual(status, 0)
+        _, status = check_draft.compare("Rate: 5%.", "Rate: 50%.")
+        self.assertEqual(status, 1)
 
     def test_binding_change_requires_review(self):
         report, status = check_draft.compare(
@@ -360,6 +428,44 @@ class ProseViewTests(unittest.TestCase):
             check_draft.build_prose_view(draft, is_latex, is_markdown),
         )
 
+    def test_spaced_percent_does_not_mask_the_rest_of_the_line(self):
+        draft = (
+            "Recall improves by 5 % over the baseline \\citep{du2016}, "
+            "with the rapid development of the market.\n\n"
+            "The share of censored orders (%) is reported, and so on.\n"
+        )
+        for is_markdown in (True, False):
+            with self.subTest(is_markdown=is_markdown):
+                report = check_draft.run_checks(draft, is_markdown=is_markdown)
+                self.assertEqual(len(report.hard["中式学术英语"]), 2)
+        self.assertNotIn(
+            "keep",
+            check_draft.build_prose_view("Text. % keep this", is_latex=True),
+        )
+
+    def test_unclosed_code_fence_is_reported(self):
+        draft = (
+            "Intro sentence.\n\n```\nfor i in 1..n\n\n"
+            "With the rapid development of markets, firms adapt.\n"
+        )
+        report = check_draft.run_checks(draft, is_markdown=True)
+        self.assertIn("未闭合代码围栏", report.hard)
+        closed = draft.replace("for i in 1..n\n", "for i in 1..n\n```\n")
+        report = check_draft.run_checks(closed, is_markdown=True)
+        self.assertNotIn("未闭合代码围栏", report.hard)
+        self.assertIn("中式学术英语", report.hard)
+
+    def test_sentence_final_st_is_not_an_abbreviation(self):
+        prose = (
+            "We evaluate the model on the held-out test. "
+            "The proposed design attains the lowest cost. "
+            "This is the first result."
+        )
+        self.assertEqual(len(check_draft.split_sentences(prose)), 3)
+        self.assertNotIn("超长句", check_draft.run_checks(prose, is_latex=False).soft)
+        kept = "Zhang et al. (2021) report gains. St. Louis is the site."
+        self.assertEqual(len(check_draft.split_sentences(kept)), 2)
+
     def test_contextual_wording_is_not_a_hard_failure(self):
         report = check_draft.run_checks(
             "Prior to estimation, the listed company model includes a hidden variable.",
@@ -379,12 +485,40 @@ class InputTests(unittest.TestCase):
 
     def test_rejects_unsupported_extensions(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            for suffix in (".docx", ".pdf", ".rtf"):
+            for suffix in (".pdf", ".rtf", ".png"):
                 path = Path(temp_dir) / f"draft{suffix}"
                 path.write_bytes(b"not a supported text input")
                 with self.subTest(suffix=suffix):
                     with self.assertRaises(ValueError):
                         check_draft.read(str(path))
+
+    def test_docx_prose_is_extracted(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "paper.docx"
+            write_docx(path, [
+                "With the rapid development of e-commerce, firms adapt.",
+                "Recall improves by 12.5% &amp; precision by 3%.",
+            ])
+            text = check_draft.read(str(path))
+        self.assertEqual(
+            text,
+            "With the rapid development of e-commerce, firms adapt.\n\n"
+            "Recall improves by 12.5% & precision by 3%.\n",
+        )
+        report = check_draft.run_checks(text)
+        self.assertIn("中式学术英语", report.hard)
+
+    def test_malformed_docx_is_an_input_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "draft.docx"
+            path.write_bytes(b"not a zip archive")
+            with self.assertRaises(ValueError):
+                check_draft.read(str(path))
+            empty = Path(temp_dir) / "empty.docx"
+            with zipfile.ZipFile(empty, "w") as archive:
+                archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
+            with self.assertRaises(ValueError):
+                check_draft.read(str(empty))
 
     def test_rejects_invalid_utf8(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -409,9 +543,22 @@ class InputTests(unittest.TestCase):
         self.assertIn("标准输入", error)
 
     def test_input_error_does_not_use_review_status(self):
-        status, _, error = self.run_main(["missing.docx"])
+        status, _, error = self.run_main(["missing.pdf"])
         self.assertEqual(status, 3)
         self.assertIn("不支持", error)
+
+    def test_extract_prints_prose_and_rejects_compare(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "paper.docx"
+            write_docx(path, ["First paragraph.", "Second paragraph."])
+            status, output, _ = self.run_main([str(path), "--extract"])
+            self.assertEqual(status, 0)
+            self.assertEqual(output, "First paragraph.\n\nSecond paragraph.\n")
+            status, _, error = self.run_main(
+                [str(path), "--extract", "--compare", str(path)]
+            )
+        self.assertEqual(status, 3)
+        self.assertIn("--extract", error)
 
     def test_mixed_stdin_and_tex_preserves_latex_hint(self):
         with tempfile.TemporaryDirectory() as temp_dir:
