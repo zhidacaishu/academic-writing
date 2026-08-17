@@ -3,12 +3,14 @@
 """
 方法类英文学术论文机械检查器。纯标准库，不联网。
 
-仅接受标准输入或 UTF-8 编码的 .txt、.md、.tex 文件。脚本统一报告可疑位置，
-以便将注意力用于需要人工判断的内容。
+接受标准输入、UTF-8 编码的 .txt/.md/.tex，以及 .docx（抽取正文散文后处理）。
+脚本统一报告可疑位置，以便将注意力用于需要人工判断的内容。
+未闭合的 Markdown 代码围栏会屏蔽其后全部内容，作为必改项报出。
 
 用法
-    python check_draft.py draft.tex
-    python check_draft.py orig.tex --compare new.tex
+    python3 check_draft.py draft.tex
+    python3 check_draft.py orig.tex --compare new.tex
+    python3 check_draft.py paper.docx --extract > paper.md
 
 --compare 按原文顺序比对引用命令、交叉引用、公式、数字及应保持原样的
 Markdown/LaTeX 源码。它能够发现这些对象的增删、改写、换序，并对局部绑定
@@ -19,9 +21,11 @@ Markdown/LaTeX 源码。它能够发现这些对象的增删、改写、换序�
 """
 
 import argparse
+import html
 import re
 import statistics
 import sys
+import zipfile
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -110,6 +114,8 @@ CJK_PUNCT = "\u3001\u3002\uff01\uff08\uff09\uff0c\uff1a\uff1b\uff1f\uff0e\u300a\
 CJK_CHAR = re.compile(r"[\u4e00-\u9fff]+")
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".tex"}
+# .docx 的正文抽取不涉及版式推断，故接受；.pdf、.rtf 与图片不接受。
+EXTRACTABLE_EXTENSIONS = {".docx"}
 VERBATIM_ENVS = {"verbatim", "Verbatim", "lstlisting", "minted"}
 MATH_ENVS = {
     "math", "displaymath", "equation", "align", "alignat", "flalign",
@@ -142,11 +148,14 @@ SOURCE_COMMAND_RE = re.compile(
         re.escape(name) for name in sorted(SOURCE_COMMANDS, key=len, reverse=True)
     ) + r")\b(\*)?"
 )
+# \u8fb9\u754c\u91c7\u7528 ASCII \u5b57\u7b26\u7c7b\u800c\u975e \w\u3002Python \u7684 \w \u5339\u914d\u6c49\u5b57\uff0c\u7528 \w \u4f5c\u65ad\u8a00\u4f1a\u5426\u51b3\u4e00\u5207
+# \u7d27\u8d34\u6c49\u5b57\u7684\u6570\u5b57\uff08\u4e2d\u6587\u6392\u7248\u5199\u201c\u63d0\u53475%\u201d\uff0c\u4e0d\u52a0\u7a7a\u683c\uff09\uff0c\u81f4\u4f7f\u4e2d\u8bd1\u82f1 --compare \u5728\u539f\u7a3f
+# \u4e00\u4fa7\u63d0\u53d6\u4e0d\u5230\u4efb\u4f55\u6570\u5b57\uff0c\u5bf9\u6570\u5b57\u6539\u52a8\u5b8c\u5168\u5931\u53bb\u9274\u522b\u529b\u3002
 NUMBER_RE = re.compile(
-    r"(?<![\w.])"
+    r"(?<![0-9A-Za-z_.])"
     r"[+\-\u2212]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)"
     r"(?:[eE][+\-]?\d+)?(?:\s*(?:\\?%|\u2030))?"
-    r"(?!\w)"
+    r"(?![0-9A-Za-z_])"
 )
 
 
@@ -261,7 +270,7 @@ def _scan_markdown_frontmatter(text, occupied):
     return [event]
 
 
-def _scan_markdown_fences(text, occupied):
+def _scan_markdown_fences(text, occupied, unclosed=None):
     events = []
     lines = text.splitlines(keepends=True)
     offsets = []
@@ -283,11 +292,14 @@ def _scan_markdown_fences(text, occupied):
         closing_index = index + 1
         while closing_index < len(lines) and not closing_re.fullmatch(lines[closing_index]):
             closing_index += 1
-        end = (
-            offsets[closing_index] + len(lines[closing_index])
-            if closing_index < len(lines)
-            else len(text)
-        )
+        if closing_index < len(lines):
+            end = offsets[closing_index] + len(lines[closing_index])
+        else:
+            # 未闭合的围栏会屏蔽文件剩余部分，其后每一项检查都作用于空白。
+            # 此处仍然屏蔽，否则代码会被当作散文检查；但须交由调用方报出。
+            end = len(text)
+            if unclosed is not None:
+                unclosed.append((index + 1, fence))
         raw = _normalize_newlines(text[start:end])
         events.append(_event("code_fence", fence[0], (raw,), text, start, end))
         occupied.append((start, end))
@@ -313,12 +325,14 @@ def _scan_markdown_inline_code(text, occupied):
     return events
 
 
-def _scan_environments(text, names, kind, occupied):
+def _scan_environments(text, names, kind, occupied, blocked=()):
     events = []
     alternatives = "|".join(re.escape(name) for name in sorted(names, key=len, reverse=True))
     pattern = re.compile(r"\\begin\s*\{(" + alternatives + r")(\*)?\}")
     for match in pattern.finditer(text):
         if _overlaps(match.start(), match.end(), occupied):
+            continue
+        if _overlaps(match.start(), match.end(), blocked):
             continue
         name = match.group(1) + (match.group(2) or "")
         end_pattern = re.compile(r"\\end\s*\{" + re.escape(name) + r"\}")
@@ -334,10 +348,12 @@ def _scan_environments(text, names, kind, occupied):
     return events
 
 
-def _scan_source_lines(text, occupied):
+def _scan_source_lines(text, occupied, blocked=()):
     events = []
     for match in SOURCE_COMMAND_RE.finditer(text):
         if _overlaps(match.start(), match.end(), occupied):
+            continue
+        if _overlaps(match.start(), match.end(), blocked):
             continue
         cursor = match.end()
         last_end = cursor
@@ -373,7 +389,7 @@ def _scan_source_lines(text, occupied):
     return events
 
 
-def _scan_structural_source(text, occupied):
+def _scan_structural_source(text, occupied, blocked=()):
     events = []
     env_names = "|".join(
         re.escape(name) for name in sorted(STRUCTURAL_ENVS, key=len, reverse=True)
@@ -382,6 +398,8 @@ def _scan_structural_source(text, occupied):
     table_ranges = []
     for match in env_re.finditer(text):
         if _overlaps(match.start(), match.end(), occupied):
+            continue
+        if _overlaps(match.start(), match.end(), blocked):
             continue
         action, name = match.group(1), match.group(2)
         pos = match.end()
@@ -424,6 +442,8 @@ def _scan_structural_source(text, occupied):
     )
     for match in command_re.finditer(text):
         if _overlaps(match.start(), match.end(), occupied):
+            continue
+        if _overlaps(match.start(), match.end(), blocked):
             continue
         pos = match.end()
         while True:
@@ -493,25 +513,44 @@ def _scan_inline_verbs(text, occupied):
     return events
 
 
-def _scan_comments(text, occupied):
-    events = []
+def _percent_is_a_sign(line, pos, body_end):
+    """判定 % 为百分号而非注释起点。
+
+    LaTeX 正文中的字面百分号须写作 \\%，但 .md/.txt 稿常直接写 15%、5 % 或 (%)。
+    误判为注释将屏蔽整行正文，检查器随之输出无效的“未发现问题”，其代价高于
+    漏剥一处注释，故判定向保留正文一侧倾斜。
+    """
+    before = line[:pos].rstrip()
+    if before and before[-1].isdigit():
+        return True
+    after = line[pos + 1:body_end].lstrip()
+    return before.endswith("(") and after.startswith(")")
+
+
+def _comment_spans(text):
+    """LaTeX 行注释的范围。每行只取第一个构成注释的 % 作为起点。"""
+    spans = []
     offset = 0
     for line in text.splitlines(keepends=True):
         body_end = len(line.rstrip("\r\n"))
         for local_pos in range(body_end):
             if line[local_pos] != "%" or _is_escaped(line, local_pos):
                 continue
-            # 紧跟数字的 % 是百分号：LaTeX 正文里字面百分号必须写 \%，
-            # 而 .md/.txt 稿常直接写 15%，误判会把整行正文当注释屏蔽。
-            if local_pos and line[local_pos - 1].isdigit():
+            if _percent_is_a_sign(line, local_pos, body_end):
                 continue
-            start, end = offset + local_pos, offset + body_end
-            if not _overlaps(start, end, occupied):
-                raw = line[local_pos:body_end]
-                events.append(_event("comment", "%", (raw,), text, start, end))
-                occupied.append((start, end))
+            spans.append((offset + local_pos, offset + body_end))
             break
         offset += len(line)
+    return spans
+
+
+def _scan_comments(text, occupied, spans):
+    events = []
+    for start, end in spans:
+        if _overlaps(start, end, occupied):
+            continue
+        events.append(_event("comment", "%", (text[start:end],), text, start, end))
+        occupied.append((start, end))
     return events
 
 
@@ -526,12 +565,13 @@ def _looks_like_inline_math(text, content_start, close):
     )
 
 
-def _scan_math(text, occupied):
-    events = _scan_environments(text, MATH_ENVS, "math", occupied)
+def _scan_math(text, occupied, comment_spans=()):
+    events = _scan_environments(text, MATH_ENVS, "math", occupied, comment_spans)
     # 本轮新增的都是 math 事件，且扫描指针只向前走，因此进入循环前快照一次
     # 已占用位置即可；逐字符重扫 occupied 会让整体退化为 O(n^2)。
+    # comment_spans 一并纳入位图：注释内的 $ 与 \[ 不构成公式。
     blocked = bytearray(len(text))
-    for lo, hi in occupied:
+    for lo, hi in list(occupied) + list(comment_spans):
         for pos in range(max(0, lo), min(len(text), hi)):
             blocked[pos] = 1
     i = 0
@@ -654,15 +694,33 @@ def collect_nonprose_events(text, is_latex=None, is_markdown=False):
         events += _scan_markdown_frontmatter(text, occupied)
         events += _scan_markdown_fences(text, occupied)
         events += _scan_markdown_inline_code(text, occupied)
+    # Markdown 没有 % 行注释，稿中的 % 一律是百分号。仅凭一处 \citep{} 即按
+    # LaTeX 剥离注释，会屏蔽整行正文。
+    comment_spans = _comment_spans(text) if is_latex and not is_markdown else []
     if is_latex:
         events += _scan_environments(text, VERBATIM_ENVS, "verbatim", occupied)
         events += _scan_inline_verbs(text, occupied)
-        events += _scan_comments(text, occupied)
-        events += _scan_source_lines(text, occupied)
-        events += _scan_structural_source(text, occupied)
-    events += _scan_math(text, occupied)
+        # 注释优先于宏定义与图表结构（`% \newcommand{...}` 归属注释）。该优先级
+        # 由 comment_spans 显式表达，不依赖扫描顺序。
+        events += _scan_source_lines(text, occupied, comment_spans)
+        events += _scan_structural_source(text, occupied, comment_spans)
+    # 公式须先于注释登记。公式内部的 % 归属公式；若先登记为注释，_overlaps 会
+    # 跳过整个 \begin{equation} 或 \[...\]，公式既不被屏蔽，也不再是受保护对象，
+    # --compare 随之把改动过的公式报为未变化。
+    events += _scan_math(text, occupied, comment_spans)
+    if is_latex:
+        events += _scan_comments(text, occupied, comment_spans)
     events += _scan_protected_commands(text, occupied)
     return sorted(events, key=lambda item: item.start)
+
+
+def unclosed_fences(text):
+    """未闭合的 Markdown 代码围栏，返回 (行号, 围栏) 列表。"""
+    occupied = []
+    found = []
+    _scan_markdown_frontmatter(text, occupied)
+    _scan_markdown_fences(text, occupied, found)
+    return found
 
 
 def mask_preserving_layout(text, spans):
@@ -731,11 +789,13 @@ def context(text, pos, span=34):
 def split_sentences_with_spans(prose):
     protected = prose
     for ab in SENT_ABBREV:
+        # 左侧词边界与大小写敏感缺一不可。缺少边界时，`St.` 会命中 test.、cost.、
+        # first.、most.、must.、robust.，`Fig.` 会命中 config.，相应的句子边界随之
+        # 消失；整段合并为一句后必然触发无效的“超长句”，句长分布统计同时失真。
         protected = re.sub(
-            re.escape(ab),
+            r"(?<![A-Za-z])" + re.escape(ab),
             lambda match: match.group().replace(".", "\x00"),
             protected,
-            flags=re.I,
         )
     boundaries = list(re.finditer(r"(?<=[.!?])\s+(?=[A-Z(])", protected))
     starts = [0] + [match.end() for match in boundaries]
@@ -910,6 +970,12 @@ def check_sentences(prose, rep):
         rep.add("soft", "句长分布", "超过半数句子的长度集中在 15–25 词：应根据内容关系合并短句或拆分长句")
 
 
+def check_fences(text, rep):
+    for line_no, fence in unclosed_fences(text):
+        rep.add("hard", "未闭合代码围栏",
+                f"L{line_no}: '{fence}' 缺少收尾围栏，其后内容全部未被检查")
+
+
 def check_numbers(prose, rep):
     pcts = re.findall(r"(\d+)\.(\d+)\s*\\?%", prose)
     if pcts:
@@ -921,13 +987,21 @@ def check_numbers(prose, rep):
 
 
 # ---------------------------------------------------------------- 比对模式
+def _number_key(raw):
+    """比对用的数字写法。中文原稿写 5%，LaTeX 稿须写 5\\%，两者是同一数值；
+    不作归一化时，中译英比对中的每一个百分数都会报为受保护对象变动。"""
+    return re.sub(r"\s*\\?%", "%", raw.replace("−", "-"))
+
+
 def extract_protected_events(text, is_latex=None, is_markdown=False):
     events = collect_nonprose_events(text, is_latex, is_markdown)
     spans = [(event.start, event.end) for event in events]
     number_view = mask_preserving_layout(text, spans)
     for match in NUMBER_RE.finditer(number_view):
-        raw = match.group()
-        events.append(_event("number", "", (raw,), text, match.start(), match.end()))
+        events.append(
+            _event("number", "", (_number_key(match.group()),),
+                   text, match.start(), match.end())
+        )
     return sorted(events, key=lambda item: item.start)
 
 
@@ -1059,12 +1133,47 @@ def syntax_hints(paths, texts):
     return is_latex, any(infer_markdown(text) for text in texts)
 
 
+def extract_docx(path):
+    """从 .docx 抽取正文散文。
+
+    .docx 的正文以 XML 存储于压缩包内，散文部分的抽取是无损的，不依赖第三方库，
+    也不涉及版式推断。修订记录、批注、公式对象、图表位置与样式一律丢失，因此
+    抽取结果仅作为文本处理的输入，不得回写原文件。
+    """
+    try:
+        with zipfile.ZipFile(path) as archive:
+            payload = archive.read("word/document.xml")
+    except KeyError:
+        raise ValueError(f"'{path}' 不是有效的 .docx：缺少 word/document.xml")
+    except zipfile.BadZipFile:
+        raise ValueError(f"'{path}' 不是有效的 .docx：无法作为 zip 打开")
+    xml = payload.decode("utf-8", errors="replace")
+    body = re.search(r"(?s)<w:body\b.*?</w:body>", xml)
+    if body:
+        xml = body.group()
+    xml = re.sub(r"(?s)<w:instrText\b.*?</w:instrText>", "", xml)
+    xml = re.sub(r"(?s)<mc:Fallback\b.*?</mc:Fallback>", "", xml)
+    xml = re.sub(r"<w:tab\b[^>]*/>", "\t", xml)
+    xml = re.sub(r"<w:(?:br|cr)\b[^>]*/>", "\n", xml)
+    paragraphs = []
+    for block in xml.split("</w:p>"):
+        pieces = re.findall(r"(?s)<w:t\b[^>]*>(.*?)</w:t>", block)
+        if not pieces:
+            continue
+        paragraph = html.unescape("".join(pieces)).strip()
+        if paragraph:
+            paragraphs.append(paragraph)
+    return "\n\n".join(paragraphs) + ("\n" if paragraphs else "")
+
+
 def read(path):
     if path == "-":
         return sys.stdin.read()
     suffix = Path(path).suffix.lower()
+    if suffix in EXTRACTABLE_EXTENSIONS:
+        return extract_docx(path)
     if suffix not in SUPPORTED_EXTENSIONS:
-        allowed = ", ".join(sorted(SUPPORTED_EXTENSIONS))
+        allowed = ", ".join(sorted(SUPPORTED_EXTENSIONS | EXTRACTABLE_EXTENSIONS))
         raise ValueError(f"不支持 '{suffix or '无扩展名'}'；仅接受 {allowed} 或标准输入")
     with open(path, encoding="utf-8-sig", errors="strict") as f:
         return f.read()
@@ -1074,6 +1183,8 @@ def run_checks(text, is_latex=None, is_markdown=False):
     is_latex = infer_latex(text) if is_latex is None else is_latex
     prose = build_prose_view(text, is_latex, is_markdown)
     rep = Report()
+    if is_markdown:
+        check_fences(text, rep)
     check_dashes(prose, rep, is_markdown)
     check_cjk_residue(prose, rep, is_latex)
     check_wording(prose, rep)
@@ -1089,19 +1200,27 @@ def main():
     ap = DraftArgumentParser(description="方法类英文论文稿件机械检查")
     ap.add_argument(
         "path",
-        help="UTF-8 .txt/.md/.tex 路径；'-' 表示从标准输入读取提示词中的文本",
+        help="UTF-8 .txt/.md/.tex 或 .docx 路径；'-' 表示从标准输入读取提示词中的文本",
     )
     ap.add_argument("--compare", metavar="EDITED",
                     help="润色后的 .txt/.md/.tex，按顺序比对受保护对象")
+    ap.add_argument("--extract", action="store_true",
+                    help="将正文抽取为纯文本输出至标准输出，不执行检查；用于 .docx")
     args = ap.parse_args()
     if args.path == "-" and args.compare == "-":
         ap.error("原稿和修改稿不能同时从标准输入读取")
+    if args.extract and args.compare:
+        ap.error("--extract 与 --compare 不能同时使用")
 
     try:
         text = read(args.path)
         edited = read(args.compare) if args.compare else None
     except (OSError, UnicodeError, ValueError) as exc:
         ap.error(str(exc))
+
+    if args.extract:
+        print(text, end="" if text.endswith("\n") else "\n")
+        sys.exit(0)
 
     is_latex, is_markdown = syntax_hints(
         (args.path, args.compare), (text, edited or "")
