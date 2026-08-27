@@ -21,11 +21,11 @@ Markdown/LaTeX 源码。它能够发现这些对象的增删、改写、换序�
 """
 
 import argparse
-import html
 import re
 import statistics
 import sys
 import zipfile
+import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -114,8 +114,51 @@ CJK_PUNCT = "\u3001\u3002\uff01\uff08\uff09\uff0c\uff1a\uff1b\uff1f\uff0e\u300a\
 CJK_CHAR = re.compile(r"[\u4e00-\u9fff]+")
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".tex"}
-# .docx 的正文抽取不涉及版式推断，故接受；.pdf、.rtf 与图片不接受。
+# .docx 只在结构预检通过后接受；.pdf、.rtf 与图片不接受。
 EXTRACTABLE_EXTENSIONS = {".docx"}
+WORD_NS = {
+    "http://schemas.openxmlformats.org/wordprocessingml/2006/main",
+    "http://purl.oclc.org/ooxml/wordprocessingml/main",
+}
+MATH_NS = {
+    "http://schemas.openxmlformats.org/officeDocument/2006/math",
+    "http://purl.oclc.org/ooxml/officeDocument/math",
+}
+MC_NS = {"http://schemas.openxmlformats.org/markup-compatibility/2006"}
+DOCX_REVISION_ELEMENTS = {
+    "ins", "del", "moveFrom", "moveTo", "moveFromRangeStart", "moveFromRangeEnd",
+    "moveToRangeStart", "moveToRangeEnd", "customXmlInsRangeStart",
+    "customXmlInsRangeEnd", "customXmlDelRangeStart", "customXmlDelRangeEnd",
+    "customXmlMoveFromRangeStart", "customXmlMoveFromRangeEnd",
+    "customXmlMoveToRangeStart", "customXmlMoveToRangeEnd", "cellIns", "cellDel",
+    "cellMerge", "numberingChange", "conflictIns", "conflictDel",
+}
+DOCX_LOSSY_ELEMENTS = {
+    "tbl": "table",
+    "comment": "comment",
+    "commentRangeStart": "comment",
+    "commentRangeEnd": "comment",
+    "commentReference": "comment",
+    "footnoteReference": "footnote",
+    "endnoteReference": "endnote",
+    "drawing": "drawing",
+    "pict": "drawing",
+    "object": "embedded_object",
+    "txbxContent": "textbox",
+    "fldSimple": "field",
+    "fldChar": "field",
+    "instrText": "field",
+    "sdt": "content_control",
+    "dataBinding": "content_control",
+    "altChunk": "alt_chunk",
+}
+DOCX_ASSET_PREFIXES = {
+    "word/media/": "media",
+    "word/charts/": "chart",
+    "word/diagrams/": "smartart",
+    "word/embeddings/": "embedded_object",
+}
+MAX_DOCX_XML_BYTES = 64 * 1024 * 1024
 VERBATIM_ENVS = {"verbatim", "Verbatim", "lstlisting", "minted"}
 MATH_ENVS = {
     "math", "displaymath", "equation", "align", "alignat", "flalign",
@@ -206,6 +249,125 @@ class ProtectedEvent:
         return self.kind, self.command, self.payload
 
 
+@dataclass(frozen=True)
+class DocxFinding:
+    level: str
+    code: str
+    part: str
+    element: str
+    count: int = 1
+
+
+@dataclass(frozen=True)
+class DocxPreflight:
+    findings: tuple
+    document_xml: bytes
+
+    @property
+    def has_blockers(self):
+        return any(item.level == "block" for item in self.findings)
+
+    @property
+    def has_lossy(self):
+        return any(item.level == "lossy" for item in self.findings)
+
+    @property
+    def has_info(self):
+        return any(item.level == "info" for item in self.findings)
+
+    @property
+    def status(self):
+        if self.has_blockers:
+            return 1
+        if self.has_lossy or self.has_info:
+            return 2
+        return 0
+
+    def render(self):
+        lines = ["=" * 62, "DOCX 预检", "=" * 62]
+        if not self.findings:
+            lines.append("\n未发现未决修订或已知复杂对象，可以进行纯文本处理。")
+            return "\n".join(lines)
+        labels = {
+            "block": "阻断：文本版本不确定",
+            "lossy": "有损：纯文本无法完整表示",
+            "info": "提示",
+        }
+        for level in ("block", "lossy", "info"):
+            selected = [item for item in self.findings if item.level == level]
+            if not selected:
+                continue
+            lines.append(f"\n[{labels[level]}]")
+            for item in selected:
+                lines.append(
+                    f"  {item.code}: {item.part} / {item.element} × {item.count}"
+                )
+        if self.has_blockers:
+            lines.append(
+                "\n请先在 Word 中接受或拒绝全部修订并另存清洁副本；"
+                "硬阻断项不能通过有损抽取绕过。"
+            )
+        elif self.has_lossy:
+            lines.append(
+                "\n该文档不能安全投影为最终稿纯文本；仅可显式执行诊断性有损抽取。"
+            )
+        return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class LatexArgument:
+    kind: str
+    start: int
+    end: int
+    content_start: int
+    content_end: int
+
+
+@dataclass(frozen=True)
+class LatexInvocation:
+    name: str
+    command: str
+    start: int
+    token_end: int
+    end: int
+    arguments: tuple
+    issue: str = ""
+
+
+@dataclass(frozen=True)
+class CommandPolicy:
+    editable_optional: tuple = ()
+    editable_required: tuple = ()
+    all_optional_text: bool = False
+
+
+@dataclass(frozen=True)
+class ProtectionScan:
+    compare_events: tuple
+    mask_spans: tuple
+    parse_issues: tuple
+
+
+TEXT_COMMAND_POLICIES = {
+    name: CommandPolicy(editable_required=(0,))
+    for name in {
+        "title", "emph", "textbf", "textit", "textrm", "textsf", "textnormal",
+        "textmd", "textup", "textsl", "textsc", "underline",
+    }
+}
+TEXT_COMMAND_POLICIES.update({
+    name: CommandPolicy(editable_required=(0,), all_optional_text=True)
+    for name in {
+        "part", "chapter", "section", "subsection", "subsubsection",
+        "paragraph", "subparagraph", "caption",
+    }
+})
+TEXT_COMMAND_POLICIES.update({
+    "footnote": CommandPolicy(editable_required=(0,)),
+    "href": CommandPolicy(editable_required=(1,)),
+})
+
+
 def _normalize_newlines(value):
     return value.replace("\r\n", "\n").replace("\r", "\n")
 
@@ -237,6 +399,110 @@ def _consume_group(text, pos, opener, closer):
                 return i + 1, text[pos + 1:i]
         i += 1
     return None
+
+
+def _parse_latex_invocation(text, match):
+    name = match.group(1)
+    command = name + (match.group(2) or "")
+    cursor = match.end()
+    arguments = []
+    issue = ""
+    while True:
+        while cursor < len(text) and text[cursor].isspace():
+            cursor += 1
+        if cursor >= len(text) or text[cursor] not in "[{":
+            break
+        opener = text[cursor]
+        closer = "]" if opener == "[" else "}"
+        group = _consume_group(text, cursor, opener, closer)
+        if not group:
+            issue = f"L{line_of(text, cursor)}: \\{command} 的参数 '{opener}' 未闭合"
+            break
+        end, _ = group
+        arguments.append(
+            LatexArgument(
+                "optional" if opener == "[" else "required",
+                cursor,
+                end,
+                cursor + 1,
+                end - 1,
+            )
+        )
+        cursor = end
+    return LatexInvocation(
+        name, command, match.start(), match.end(),
+        arguments[-1].end if arguments else match.end(), tuple(arguments), issue,
+    )
+
+
+def _command_argument_is_editable(policy, argument, optional_index, required_index):
+    if argument.kind == "optional":
+        return policy.all_optional_text or optional_index in policy.editable_optional
+    return required_index in policy.editable_required
+
+
+def _scan_latex_commands(text, occupied):
+    events = []
+    mask_spans = []
+    issues = []
+    command_re = re.compile(r"\\([A-Za-z@]+)(\*)?")
+    for match in command_re.finditer(text):
+        if _overlaps(match.start(), match.end(), occupied):
+            continue
+        invocation = _parse_latex_invocation(text, match)
+        if invocation.issue:
+            issues.append(invocation.issue)
+        policy = TEXT_COMMAND_POLICIES.get(invocation.name)
+        if policy is None:
+            end = invocation.end
+            raw = _normalize_newlines(text[invocation.start:end])
+            events.append(
+                _event(
+                    "latex_command", invocation.command, (raw,),
+                    text, invocation.start, end,
+                )
+            )
+            mask_spans.append((invocation.start, end))
+            occupied.append((invocation.start, end))
+            continue
+        argument_shape = tuple(argument.kind for argument in invocation.arguments)
+        events.append(
+            _event(
+                "latex_shell", invocation.command, (argument_shape,),
+                text, invocation.start, invocation.token_end,
+            )
+        )
+        mask_spans.append((invocation.start, invocation.token_end))
+        occupied.append((invocation.start, invocation.token_end))
+        optional_index = required_index = 0
+        for argument in invocation.arguments:
+            editable = _command_argument_is_editable(
+                policy, argument, optional_index, required_index
+            )
+            if argument.kind == "optional":
+                optional_index += 1
+            else:
+                required_index += 1
+            if editable:
+                mask_spans.extend([
+                    (argument.start, argument.content_start),
+                    (argument.content_end, argument.end),
+                ])
+                occupied.extend([
+                    (argument.start, argument.content_start),
+                    (argument.content_end, argument.end),
+                ])
+                continue
+            raw = _normalize_newlines(text[argument.start:argument.end])
+            events.append(
+                _event(
+                    "latex_argument", invocation.command,
+                    (argument.kind, raw), text, argument.start, argument.end,
+                )
+            )
+            mask_spans.append((argument.start, argument.end))
+            occupied.append((argument.start, argument.end))
+    return events, mask_spans, issues
 
 
 def _find_unescaped(text, token, start):
@@ -679,17 +945,19 @@ def infer_latex(text):
         or re.search(
             r"\\(?:begin\s*\{|(?:cite|cites|citep|citet|parencite|textcite)"
             r"\*?\b|label\s*\{|(?:eq|auto|page|name|v|c|C)?ref\s*\{|"
-            r"includegraphics)\b",
+            r"includegraphics)\b|\\[A-Za-z@]+\*?\s*[\[{]",
             text,
             flags=re.I,
         )
     )
 
 
-def collect_nonprose_events(text, is_latex=None, is_markdown=False):
+def scan_protection(text, is_latex=None, is_markdown=False):
     is_latex = infer_latex(text) if is_latex is None else is_latex
     occupied = []
     events = []
+    mask_spans = []
+    issues = []
     if is_markdown:
         events += _scan_markdown_frontmatter(text, occupied)
         events += _scan_markdown_fences(text, occupied)
@@ -711,7 +979,34 @@ def collect_nonprose_events(text, is_latex=None, is_markdown=False):
     if is_latex:
         events += _scan_comments(text, occupied, comment_spans)
     events += _scan_protected_commands(text, occupied)
-    return sorted(events, key=lambda item: item.start)
+    mask_spans.extend((event.start, event.end) for event in events)
+    if is_latex:
+        command_events, command_masks, command_issues = _scan_latex_commands(
+            text, occupied
+        )
+        opaque_spans = [
+            (event.start, event.end)
+            for event in command_events if event.kind == "latex_command"
+        ]
+        events = [
+            event for event in events
+            if not any(
+                lo <= event.start and event.end <= hi
+                for lo, hi in opaque_spans
+            )
+        ]
+        events += command_events
+        mask_spans += command_masks
+        issues += command_issues
+    return ProtectionScan(
+        tuple(sorted(events, key=lambda item: item.start)),
+        tuple(sorted(set(mask_spans))),
+        tuple(issues),
+    )
+
+
+def collect_nonprose_events(text, is_latex=None, is_markdown=False):
+    return list(scan_protection(text, is_latex, is_markdown).compare_events)
 
 
 def unclosed_fences(text):
@@ -733,48 +1028,9 @@ def mask_preserving_layout(text, spans):
 
 
 def build_prose_view(text, is_latex=None, is_markdown=False):
-    r"""屏蔽非散文源码，同时保留 \emph{...} 等文本命令中的正文与原始行号。"""
-    events = collect_nonprose_events(text, is_latex, is_markdown)
-    view = mask_preserving_layout(text, [(event.start, event.end) for event in events])
-    chars = list(view)
-    command_re = re.compile(r"\\([A-Za-z@]+)(\*)?")
-    for match in command_re.finditer(text):
-        if not view[match.start():match.end()].strip():
-            continue
-        name = match.group(1)
-        for pos in range(match.start(), match.end()):
-            if chars[pos] not in "\r\n":
-                chars[pos] = " "
-        cursor = match.end()
-        while cursor < len(text) and text[cursor].isspace():
-            cursor += 1
-        while cursor < len(text) and text[cursor] == "[":
-            group = _consume_group(text, cursor, "[", "]")
-            if not group:
-                break
-            end, _ = group
-            for pos in range(cursor, end):
-                if chars[pos] not in "\r\n":
-                    chars[pos] = " "
-            cursor = end
-            while cursor < len(text) and text[cursor].isspace():
-                cursor += 1
-        if name in NON_PROSE_COMMANDS:
-            while cursor < len(text) and text[cursor] == "{":
-                group = _consume_group(text, cursor, "{", "}")
-                if not group:
-                    break
-                end, _ = group
-                for pos in range(cursor, end):
-                    if chars[pos] not in "\r\n":
-                        chars[pos] = " "
-                cursor = end
-                while cursor < len(text) and text[cursor].isspace():
-                    cursor += 1
-    for pos, char in enumerate(chars):
-        if char in "{}" and not _is_escaped(text, pos):
-            chars[pos] = " "
-    return "".join(chars)
+    r"""屏蔽非散文源码，同时保留已登记文本命令中的正文与原始行号。"""
+    scan = scan_protection(text, is_latex, is_markdown)
+    return mask_preserving_layout(text, scan.mask_spans)
 
 
 def line_of(text, pos):
@@ -993,16 +1249,21 @@ def _number_key(raw):
     return re.sub(r"\s*\\?%", "%", raw.replace("−", "-"))
 
 
-def extract_protected_events(text, is_latex=None, is_markdown=False):
-    events = collect_nonprose_events(text, is_latex, is_markdown)
-    spans = [(event.start, event.end) for event in events]
-    number_view = mask_preserving_layout(text, spans)
+def _events_with_numbers(text, scan):
+    events = list(scan.compare_events)
+    number_view = mask_preserving_layout(text, scan.mask_spans)
     for match in NUMBER_RE.finditer(number_view):
         events.append(
             _event("number", "", (_number_key(match.group()),),
                    text, match.start(), match.end())
         )
     return sorted(events, key=lambda item: item.start)
+
+
+def extract_protected_events(text, is_latex=None, is_markdown=False):
+    return _events_with_numbers(
+        text, scan_protection(text, is_latex, is_markdown)
+    )
 
 
 def _binding_signature(view, event):
@@ -1043,20 +1304,22 @@ def _describe_event(event):
 
 
 def compare(orig_text, new_text, is_latex=None, is_markdown=False):
-    old_events = extract_protected_events(orig_text, is_latex, is_markdown)
-    new_events = extract_protected_events(new_text, is_latex, is_markdown)
-    old_view = mask_preserving_layout(
-        orig_text, [(event.start, event.end) for event in old_events]
-    )
-    new_view = mask_preserving_layout(
-        new_text, [(event.start, event.end) for event in new_events]
-    )
+    old_scan = scan_protection(orig_text, is_latex, is_markdown)
+    new_scan = scan_protection(new_text, is_latex, is_markdown)
+    old_events = _events_with_numbers(orig_text, old_scan)
+    new_events = _events_with_numbers(new_text, new_scan)
+    old_view = mask_preserving_layout(orig_text, old_scan.mask_spans)
+    new_view = mask_preserving_layout(new_text, new_scan.mask_spans)
     lines = ["=" * 62, "润色前后比对", "=" * 62]
     old_keys = [event.key for event in old_events]
     new_keys = [event.key for event in new_events]
     matcher = SequenceMatcher(a=old_keys, b=new_keys, autojunk=False)
     hard_changes = []
     binding_changes = []
+    parse_issues = [
+        *(f"原稿 {issue}" for issue in old_scan.parse_issues),
+        *(f"修改稿 {issue}" for issue in new_scan.parse_issues),
+    ]
 
     for tag, old_start, old_end, new_start, new_end in matcher.get_opcodes():
         if tag == "equal":
@@ -1073,6 +1336,10 @@ def compare(orig_text, new_text, is_latex=None, is_markdown=False):
             old_events[old_start:old_end],
             new_events[new_start:new_end],
         ))
+
+    if parse_issues:
+        lines.append("\n[LaTeX 参数未闭合]")
+        lines += [f"  {issue}" for issue in parse_issues]
 
     if hard_changes:
         lines.append(
@@ -1095,7 +1362,7 @@ def compare(orig_text, new_text, is_latex=None, is_markdown=False):
                 f"{old_binding} → {new_binding}"
             )
 
-    if hard_changes:
+    if hard_changes or parse_issues:
         status = 1
     elif binding_changes:
         status = 2
@@ -1133,36 +1400,151 @@ def syntax_hints(paths, texts):
     return is_latex, any(infer_markdown(text) for text in texts)
 
 
-def extract_docx(path):
-    """从 .docx 抽取正文散文。
+def _xml_name(tag):
+    if not isinstance(tag, str):
+        return "", ""
+    if tag.startswith("{"):
+        namespace, local = tag[1:].split("}", 1)
+        return namespace, local
+    return "", tag
 
-    .docx 的正文以 XML 存储于压缩包内，散文部分的抽取是无损的，不依赖第三方库，
-    也不涉及版式推断。修订记录、批注、公式对象、图表位置与样式一律丢失，因此
-    抽取结果仅作为文本处理的输入，不得回写原文件。
-    """
+
+def _docx_finding_level(namespace, local):
+    if namespace in WORD_NS and (
+        local in DOCX_REVISION_ELEMENTS or local.endswith("PrChange")
+    ):
+        return "block", "revision"
+    if namespace in MC_NS and local == "AlternateContent":
+        return "block", "alternate_content"
+    if namespace in MATH_NS and local in {"oMath", "oMathPara"}:
+        return "lossy", "equation"
+    if namespace in WORD_NS and local in DOCX_LOSSY_ELEMENTS:
+        return "lossy", DOCX_LOSSY_ELEMENTS[local]
+    if namespace in WORD_NS and local == "trackRevisions":
+        return "info", "revision_tracking_enabled"
+    return None
+
+
+def preflight_docx(path):
+    counts = Counter()
     try:
         with zipfile.ZipFile(path) as archive:
-            payload = archive.read("word/document.xml")
-    except KeyError:
-        raise ValueError(f"'{path}' 不是有效的 .docx：缺少 word/document.xml")
+            names = archive.namelist()
+            if names.count("word/document.xml") != 1:
+                detail = "缺少" if "word/document.xml" not in names else "包含重复的"
+                raise ValueError(
+                    f"'{path}' 不是有效的 .docx：{detail} word/document.xml"
+                )
+            xml_infos = [
+                info for info in archive.infolist()
+                if info.filename.startswith("word/") and info.filename.endswith(".xml")
+            ]
+            if sum(info.file_size for info in xml_infos) > MAX_DOCX_XML_BYTES:
+                raise ValueError(
+                    f"'{path}' 不是有效的 .docx：Word XML 解压后超过 64 MiB 安全上限"
+                )
+            document_xml = archive.read("word/document.xml")
+            for part in sorted(info.filename for info in xml_infos):
+                if names.count(part) > 1:
+                    raise ValueError(f"'{path}' 不是有效的 .docx：包含重复成员 {part}")
+                payload = document_xml if part == "word/document.xml" else archive.read(part)
+                try:
+                    root = ET.fromstring(payload)
+                except ET.ParseError as exc:
+                    raise ValueError(f"'{path}' 不是有效的 .docx：{part} XML 损坏：{exc}")
+                for element in root.iter():
+                    namespace, local = _xml_name(element.tag)
+                    classified = _docx_finding_level(namespace, local)
+                    if classified:
+                        level, code = classified
+                        counts[(level, code, part, local)] += 1
+                    if part in {"word/footnotes.xml", "word/endnotes.xml"} and local in {
+                        "footnote", "endnote"
+                    }:
+                        note_id = next(
+                            (
+                                value for key, value in element.attrib.items()
+                                if _xml_name(key)[0] in WORD_NS
+                                and _xml_name(key)[1] == "id"
+                            ),
+                            "",
+                        )
+                        if note_id not in {"-1", "0"}:
+                            counts[("lossy", local, part, local)] += 1
+                if part.startswith("word/header") or part.startswith("word/footer"):
+                    namespace, local = _xml_name(root.tag)
+                    if namespace in WORD_NS and any(
+                        child_namespace in WORD_NS and child_local == "t"
+                        for child_namespace, child_local in (
+                            _xml_name(element.tag) for element in root.iter()
+                        )
+                    ):
+                        counts[("lossy", "header_footer", part, local)] += 1
+            for name in sorted(set(names)):
+                for prefix, code in DOCX_ASSET_PREFIXES.items():
+                    if name.startswith(prefix) and not name.endswith("/"):
+                        counts[("lossy", code, name, "package_part")] += 1
+                if name == "word/vbaProject.bin":
+                    counts[("lossy", "macro_project", name, "package_part")] += 1
     except zipfile.BadZipFile:
         raise ValueError(f"'{path}' 不是有效的 .docx：无法作为 zip 打开")
-    xml = payload.decode("utf-8", errors="replace")
-    body = re.search(r"(?s)<w:body\b.*?</w:body>", xml)
-    if body:
-        xml = body.group()
-    xml = re.sub(r"(?s)<w:instrText\b.*?</w:instrText>", "", xml)
-    xml = re.sub(r"(?s)<mc:Fallback\b.*?</mc:Fallback>", "", xml)
-    xml = re.sub(r"<w:tab\b[^>]*/>", "\t", xml)
-    xml = re.sub(r"<w:(?:br|cr)\b[^>]*/>", "\n", xml)
+    findings = tuple(
+        DocxFinding(level, code, part, element, count)
+        for (level, code, part, element), count in sorted(
+            counts.items(), key=lambda item: (
+                {"block": 0, "lossy": 1, "info": 2}[item[0][0]],
+                item[0][1:],
+            )
+        )
+    )
+    return DocxPreflight(findings, document_xml)
+
+
+def _docx_block_message(preflight):
+    if preflight.has_blockers:
+        return (
+            "DOCX 含未决修订或不确定内容分支；请先在 Word 中接受或拒绝修订并另存清洁副本"
+        )
+    return "DOCX 含纯文本无法完整表示的复杂对象；最终用途处理已阻断"
+
+
+def extract_docx(path, *, preflight=None, allow_lossy=False):
+    preflight = preflight or preflight_docx(path)
+    if preflight.has_blockers or (preflight.has_lossy and not allow_lossy):
+        raise ValueError(_docx_block_message(preflight))
+    try:
+        root = ET.fromstring(preflight.document_xml)
+    except ET.ParseError as exc:
+        raise ValueError(f"'{path}' 不是有效的 .docx：word/document.xml XML 损坏：{exc}")
+    body = next(
+        (
+            element for element in root.iter()
+            if _xml_name(element.tag)[0] in WORD_NS
+            and _xml_name(element.tag)[1] == "body"
+        ),
+        None,
+    )
+    if body is None:
+        raise ValueError(f"'{path}' 不是有效的 .docx：word/document.xml 缺少 w:body")
     paragraphs = []
-    for block in xml.split("</w:p>"):
-        pieces = re.findall(r"(?s)<w:t\b[^>]*>(.*?)</w:t>", block)
-        if not pieces:
+    for paragraph in body.iter():
+        namespace, local = _xml_name(paragraph.tag)
+        if namespace not in WORD_NS or local != "p":
             continue
-        paragraph = html.unescape("".join(pieces)).strip()
-        if paragraph:
-            paragraphs.append(paragraph)
+        pieces = []
+        for element in paragraph.iter():
+            child_namespace, child_local = _xml_name(element.tag)
+            if child_namespace not in WORD_NS:
+                continue
+            if child_local == "t" and element.text:
+                pieces.append(element.text)
+            elif child_local == "tab":
+                pieces.append("\t")
+            elif child_local in {"br", "cr"}:
+                pieces.append("\n")
+        value = "".join(pieces).strip()
+        if value:
+            paragraphs.append(value)
     return "\n\n".join(paragraphs) + ("\n" if paragraphs else "")
 
 
@@ -1181,10 +1563,13 @@ def read(path):
 
 def run_checks(text, is_latex=None, is_markdown=False):
     is_latex = infer_latex(text) if is_latex is None else is_latex
-    prose = build_prose_view(text, is_latex, is_markdown)
+    scan = scan_protection(text, is_latex, is_markdown)
+    prose = mask_preserving_layout(text, scan.mask_spans)
     rep = Report()
     if is_markdown:
         check_fences(text, rep)
+    for issue in scan.parse_issues:
+        rep.add("hard", "LaTeX 参数未闭合", issue)
     check_dashes(prose, rep, is_markdown)
     check_cjk_residue(prose, rep, is_latex)
     check_wording(prose, rep)
@@ -1206,21 +1591,78 @@ def main():
                     help="润色后的 .txt/.md/.tex，按顺序比对受保护对象")
     ap.add_argument("--extract", action="store_true",
                     help="将正文抽取为纯文本输出至标准输出，不执行检查；用于 .docx")
+    ap.add_argument("--docx-preflight", action="store_true",
+                    help="单独检查 DOCX 的未决修订与复杂对象")
+    ap.add_argument("--allow-lossy-docx", action="store_true",
+                    help="仅与 DOCX --extract 联用，允许诊断性有损纯文本投影")
     args = ap.parse_args()
     if args.path == "-" and args.compare == "-":
         ap.error("原稿和修改稿不能同时从标准输入读取")
     if args.extract and args.compare:
         ap.error("--extract 与 --compare 不能同时使用")
+    if args.docx_preflight and (args.extract or args.compare or args.allow_lossy_docx):
+        ap.error("--docx-preflight 必须单独使用")
+    path_is_docx = args.path != "-" and Path(args.path).suffix.lower() == ".docx"
+    if args.docx_preflight and not path_is_docx:
+        ap.error("--docx-preflight 仅接受 .docx")
+    if args.allow_lossy_docx and (not args.extract or not path_is_docx):
+        ap.error("--allow-lossy-docx 只能与单个 DOCX 的 --extract 联用")
 
     try:
-        text = read(args.path)
-        edited = read(args.compare) if args.compare else None
+        preflights = {}
+        for path in (args.path, args.compare):
+            if path and path != "-" and Path(path).suffix.lower() == ".docx":
+                preflights[path] = preflight_docx(path)
     except (OSError, UnicodeError, ValueError) as exc:
         ap.error(str(exc))
 
+    if args.docx_preflight:
+        result = preflights[args.path]
+        print(result.render())
+        sys.exit(result.status)
+
+    blocked = [
+        (path, result)
+        for path, result in preflights.items()
+        if result.has_blockers or (
+            result.has_lossy and not (args.extract and args.allow_lossy_docx)
+        )
+    ]
+    if blocked:
+        for path, result in blocked:
+            print(f"{path}:\n{result.render()}", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        if path_is_docx:
+            text = extract_docx(
+                args.path,
+                preflight=preflights[args.path],
+                allow_lossy=args.allow_lossy_docx,
+            )
+        else:
+            text = read(args.path)
+        if args.compare:
+            if args.compare in preflights:
+                edited = extract_docx(
+                    args.compare, preflight=preflights[args.compare]
+                )
+            else:
+                edited = read(args.compare)
+        else:
+            edited = None
+    except (OSError, UnicodeError, ValueError) as exc:
+        ap.error(str(exc))
+
+    for path, result in preflights.items():
+        if result.findings and not (result.has_lossy and args.allow_lossy_docx):
+            print(f"{path}:\n{result.render()}", file=sys.stderr)
+
     if args.extract:
+        if args.allow_lossy_docx:
+            print(preflights[args.path].render(), file=sys.stderr)
         print(text, end="" if text.endswith("\n") else "\n")
-        sys.exit(0)
+        sys.exit(2 if args.allow_lossy_docx else 0)
 
     is_latex, is_markdown = syntax_hints(
         (args.path, args.compare), (text, edited or "")

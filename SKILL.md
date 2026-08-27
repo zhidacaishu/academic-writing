@@ -86,13 +86,13 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 - 注释、宏定义、包引入及 `\includegraphics`、`\input`、`\include` 等结构命令
 - Markdown 的 YAML frontmatter、围栏代码块和行内代码
 
-`\caption{}`、`\section{}`、`\emph{}` 等文本参数属于可编辑散文，只改其中语言，不改命令结构。常见错误是把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式中的符号；这些修改可能导致编译失败或符号不一致。
+只有检查器明确登记的文本参数属于可编辑散文，例如 `\caption{}`、`\section{}`、`\emph{}`、`\footnote{}`，以及 `\href{}{}` 的第二个显示文本参数；只改其中语言，不改命令外壳和其他参数。未登记的 LaTeX 命令及其连续参数默认整体冻结，不得根据参数看似英文就自行放开。常见错误是把 `\citep{du2016}` 展开成 Du et al. (2016)，或替换公式、链接目标及包专用宏参数；这些修改可能导致编译失败、符号不一致或实质含义变化。
 
 输入分三类处理。
 
 **直接接受**：提示词中提供的文本，或 UTF-8 编码的 `.txt`、`.md`、`.tex` 文件。
 
-**抽取后接受**：`.docx`。该格式的正文以 XML 存储于压缩包内，抽取散文不涉及版式推断，通过 `check_draft.py --extract` 完成。处理前须向作者说明三项限制：修订记录、批注、公式对象与图表位置在抽取中丢失；交付物为纯文本或 Markdown，不回写原文件；公式与表格的抽取结果存疑时，标注为待作者核对。
+**预检通过后接受**：`.docx`。先运行 `check_draft.py --docx-preflight`。发现未决插入、删除、移动、属性修订或不确定内容分支时，不得抽取；请作者在 Word 中接受或拒绝全部修订并另存清洁副本。发现公式、表格、批注、notes、页眉页脚、图表、文本框、字段、内容控件或嵌入对象时，默认不得把纯文本投影当作最终稿；只有为定位问题且作者明确需要时，才可用 `--extract --allow-lossy-docx` 生成诊断文本。该文本不完整、不回写原文件，也不得用于前后安全比对。
 
 **不接受**：`.pdf`、`.rtf`、图片与扫描件。不读取、不抽取、不 OCR，也不推断版式。仅有此类附件时，请作者粘贴文本或导出为受支持的格式。
 
@@ -120,6 +120,7 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" paper.docx --docx-preflight
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" paper.docx --extract > paper.md
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" - <<'EOF'   # 检查对话中粘贴的文本
 （英文正文）
@@ -207,4 +208,4 @@ EOF
 | `references/style-and-consistency.md` | 处理任何英文成稿都要读：文风约束、一致性检查、模型化表达的人工复核、说服力 |
 | `references/design-science-genre.md` | 结构、可追溯闭环、理论适配、贡献层级、评估章节、摘要与标题、诊断判据 |
 | `references/cn-en-transfer.md` | 涉及中译英、中式英文、术语、句法、声称强度时 |
-| `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare`，`.docx` 先跑 `--extract` |
+| `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare`，`.docx` 先跑 `--docx-preflight`，通过后再 `--extract` |

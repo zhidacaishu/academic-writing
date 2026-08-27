@@ -13,7 +13,7 @@
 - 中译英和已有英文稿润色
 - 贡献、结构、逻辑及审稿意见诊断
 - UTF-8 编码的 `.txt`、`.md` 和 `.tex` 稿件
-- `.docx` 稿件：抽取正文散文后处理，交付物为纯文本或 Markdown，不回写原文件
+- 通过安全预检的 `.docx` 稿件：抽取正文散文后处理，交付物为纯文本或 Markdown，不回写原文件
 
 ### 不适合处理
 
@@ -21,7 +21,7 @@
 - 中文论文正文润色
 - 未经核实的文献、实验结果或机制解释生成
 - `.pdf`、`.rtf`、图片与扫描件的抽取、OCR 或版式推断
-- `.docx` 中修订记录、批注、公式对象与图表位置的还原：抽取过程中一律丢失
+- `.docx` 中未决修订的自动接受或拒绝，以及批注、公式、表格、图表和版式的还原
 
 ## 工作模式
 
@@ -148,7 +148,7 @@ python3 scripts/check_draft.py original.tex --compare edited.tex
 - Markdown frontmatter、围栏代码和行内代码
 - LaTeX 注释、宏定义、图表/表格结构及相关结构命令
 
-`\caption{}`、`\section{}`、`\emph{}` 等命令中的散文仍可编辑；检查器保护的是命令结构，而不是冻结其中的正常文本。
+`\caption{}`、`\section{}`、`\emph{}`、`\footnote{}` 等已登记命令中的文本参数仍可编辑；`\href{}{}` 只开放第二个显示文本参数。命令外壳、非文本参数以及未登记的命令调用默认冻结，避免把包专用宏的参数误当普通散文。
 
 `--compare` 只执行受保护对象比对，不包含普通文风检查。验证润色稿时应先对修改稿运行常规检查，再运行原稿与修改稿的 `--compare`。
 
@@ -165,6 +165,8 @@ python3 scripts/check_draft.py original.tex --compare edited.tex
 | `2` | 仅有人工复核项 | 对象未变，但局部文字绑定需要人工复核 |
 | `3` | 输入或参数错误 | 输入或参数错误 |
 
+`--docx-preflight` 使用同一组退出码：`0` 无发现，`1` 有不可处理的未决修订或不确定分支，`2` 只有复杂对象或信息提示，`3` 包或参数错误。显式有损抽取成功也固定返回 `2`。
+
 也可以通过标准输入检查文本：
 
 ```bash
@@ -173,15 +175,24 @@ python3 scripts/check_draft.py - < draft.txt
 
 原稿和修改稿不能同时从同一标准输入读取。
 
-### 从 .docx 抽取正文
+### DOCX 预检与正文抽取
+
+处理 `.docx` 前先单独预检：
 
 ```bash
+python3 scripts/check_draft.py paper.docx --docx-preflight
 python3 scripts/check_draft.py paper.docx --extract > paper.md
 ```
 
-`.docx` 的正文以 XML 存储于压缩包内，抽取由标准库 `zipfile` 完成，不涉及版式推断，也不引入第三方依赖。段落分隔保留为空行，XML 实体予以还原。修订记录、批注、公式对象、图表位置与样式一律丢失，因此抽取结果仅作为文本处理的输入，不回写原文件。
+脚本用标准库 `zipfile` 与 `ElementTree` 扫描 Word 包内的 XML 部件，不依赖固定 namespace 前缀。未决插入、删除、移动、属性修订或 `AlternateContent` 会永久阻断处理；请先在 Word 中接受或拒绝全部修订并另存清洁副本。仅启用“修订跟踪”但没有实际修订元素时只给提示。
 
-`.docx` 亦可直接传入常规检查，脚本内部先抽取再检查。`--extract` 与 `--compare` 互斥。`.pdf`、`.rtf` 与图片仍不接受，返回退出码 `3`。
+公式、表格、批注、脚注/尾注、页眉页脚、图表、文本框、字段、内容控件及嵌入对象会使纯文本投影不完整，因此默认不能作为最终稿直接检查、比较或抽取。确需排障时可显式执行：
+
+```bash
+python3 scripts/check_draft.py paper.docx --extract --allow-lossy-docx > diagnostic.txt
+```
+
+该模式只允许诊断性投影，正文写 stdout，风险摘要写 stderr，退出码固定为 `2`；它不能绕过未决修订，也不能用于 `--compare`。清洁 `.docx` 可直接传入常规检查或作为 `--compare` 任一端，脚本会先分别预检再抽取。`.pdf`、`.rtf` 与图片仍不接受。
 
 ## 测试与维护
 
@@ -197,7 +208,7 @@ python3 -m unittest discover -s scripts -p "test_*.py"
 python3 -m py_compile scripts/check_draft.py scripts/test_check_draft.py
 ```
 
-当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、宏和注释优先级、公式内注释不破坏公式保护、注释内 `$` 不算公式、货币与公式区分、百分号与 LaTeX 注释的区分（含 `5 %` 与 `(%)`）、未闭合围栏的报出、Markdown 分隔行与破折号的区分、紧贴汉字的数字提取与 `5%` / `5\%` 归一、句末 `-st.` 不被当作缩写、复数写法与复数缩写、连接词链条的相邻段首判定、弯引号的 LaTeX 限定、表层写法变体与英美拼写混用的分级、`.docx` 抽取与损坏包的报错、输入编码以及 CLI 退出码。
+当前测试覆盖受保护对象增删与换序、局部绑定提示、Markdown/LaTeX 边界、未知命令冻结与已登记文本参数、宏和注释优先级、公式内注释不破坏公式保护、注释内 `$` 不算公式、货币与公式区分、百分号与 LaTeX 注释的区分（含 `5 %` 与 `(%)`）、未闭合源码区域的报出、紧贴汉字的数字提取与 `5%` / `5\%` 归一、语言规则分级、DOCX 跨部件修订与复杂对象预检、有损抽取隔离、损坏包和 XML 的报错、输入编码以及 CLI 退出码。
 
 维护时遵循以下原则：
 

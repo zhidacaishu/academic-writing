@@ -20,19 +20,22 @@ DOCX_CONTENT_TYPES = (
 )
 
 
-def write_docx(path, paragraphs):
-    body = "".join(
-        f"<w:p><w:r><w:t xml:space=\"preserve\">{text}</w:t></w:r></w:p>"
-        for text in paragraphs
-    )
-    document = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
-        f'2006/main"><w:body>{body}</w:body></w:document>'
-    )
+def write_docx(path, paragraphs=(), *, document=None, parts=None):
+    if document is None:
+        body = "".join(
+            f"<w:p><w:r><w:t xml:space=\"preserve\">{text}</w:t></w:r></w:p>"
+            for text in paragraphs
+        )
+        document = (
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/'
+            f'2006/main"><w:body>{body}</w:body></w:document>'
+        )
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
         archive.writestr("word/document.xml", document)
+        for name, payload in (parts or {}).items():
+            archive.writestr(name, payload)
 
 
 class CompareTests(unittest.TestCase):
@@ -216,18 +219,70 @@ class CompareTests(unittest.TestCase):
             r"\newcommand{\vect}[1]{\mathbf{#1}}",
         )
 
-    def test_non_citation_macro_and_editable_latex_text_are_not_protected(self):
-        cases = [
-            (r"A \excite{old}.", r"A \excite{new}."),
+    def test_unknown_command_is_frozen_but_registered_text_is_editable(self):
+        self.assert_hard_change(r"A \excite{old}.", r"A \excite{new}.")
+        for original, edited in [
             (r"\caption{Old caption}", r"\caption{New caption}"),
             (r"\section{Old heading}", r"\section{New heading}"),
-        ]
-        for original, edited in cases:
+            (r"\emph{Old text}", r"\emph{New text}"),
+        ]:
             with self.subTest(original=original):
                 report, status = check_draft.compare(
                     original, edited, is_latex=True
                 )
                 self.assertEqual(status, 0, report)
+
+    def test_unknown_command_arguments_and_shell_are_frozen(self):
+        cases = [
+            (r"\custom[old]{same}", r"\custom[new]{same}"),
+            (r"\custom[mode]{old}", r"\custom[mode]{new}"),
+            (r"\custom{same}", r"\changed{same}"),
+            (r"\url{https://old.example}", r"\url{https://new.example}"),
+            (r"\path{old/file}", r"\path{new/file}"),
+            (r"\begin{itemize}", r"\begin{enumerate}"),
+        ]
+        for original, edited in cases:
+            with self.subTest(original=original):
+                self.assert_hard_change(original, edited)
+
+    def test_known_text_command_argument_policies(self):
+        hard_cases = [
+            (
+                r"\href{https://old.example}{same anchor}",
+                r"\href{https://new.example}{same anchor}",
+            ),
+            (r"\footnote[1]{same text}", r"\footnote[2]{same text}"),
+            (r"\caption[Short]{Long}", r"\caption[Short]{Long}".replace("caption", "caption*")),
+            (r"\emph{See \citep{old}.}", r"\emph{See \citep{new}.}"),
+        ]
+        for original, edited in hard_cases:
+            with self.subTest(original=original):
+                self.assert_hard_change(original, edited)
+        for original, edited in [
+            (
+                r"\href{https://same.example}{old anchor}",
+                r"\href{https://same.example}{new anchor}",
+            ),
+            (r"\footnote{Old note}", r"\footnote{New note}"),
+            (r"\caption[Old short]{Old long}", r"\caption[New short]{New long}"),
+        ]:
+            with self.subTest(original=original):
+                report, status = check_draft.compare(original, edited, is_latex=True)
+                self.assertEqual(status, 0, report)
+
+    def test_unknown_outer_command_does_not_duplicate_nested_events(self):
+        events = check_draft.collect_nonprose_events(
+            r"\unknown{See \citep{x} and $y=1$.}", is_latex=True
+        )
+        self.assertEqual([event.kind for event in events], ["latex_command"])
+
+    def test_unclosed_latex_argument_is_a_hard_failure(self):
+        text = r"\unknown{broken argument. Following prose remains visible."
+        report = check_draft.run_checks(text, is_latex=True)
+        self.assertIn("LaTeX 参数未闭合", report.hard)
+        output, status = check_draft.compare(text, text, is_latex=True)
+        self.assertEqual(status, 1, output)
+        self.assertIn("参数未闭合", output)
 
 
 class ProseViewTests(unittest.TestCase):
@@ -259,6 +314,29 @@ class ProseViewTests(unittest.TestCase):
             r"\emph{with the rapid development of markets}", is_latex=True
         )
         self.assertIn("中式学术英语", report.hard)
+
+    def test_unknown_no_argument_command_only_masks_token(self):
+        report = check_draft.run_checks(
+            r"\unknown with the rapid development of markets", is_latex=True
+        )
+        self.assertIn("中式学术英语", report.hard)
+
+    def test_unknown_arguments_are_not_checked_as_prose(self):
+        report = check_draft.run_checks(
+            r"\unknown[中文]{with the rapid development of markets}", is_latex=True
+        )
+        self.assertNotIn("中文字符残留", report.hard)
+        self.assertNotIn("中式学术英语", report.hard)
+
+    def test_registered_text_arguments_remain_prose(self):
+        for text in [
+            r"\caption[with the rapid development of markets]{Clean title}",
+            r"\footnote{with the rapid development of markets}",
+            r"\href{https://example.test}{with the rapid development of markets}",
+        ]:
+            with self.subTest(text=text):
+                report = check_draft.run_checks(text, is_latex=True)
+                self.assertIn("中式学术英语", report.hard)
 
     def test_legal_ai_associated_words_are_not_checked(self):
         text = (
@@ -508,6 +586,111 @@ class InputTests(unittest.TestCase):
         report = check_draft.run_checks(text)
         self.assertIn("中式学术英语", report.hard)
 
+    def test_docx_preflight_is_namespace_prefix_independent(self):
+        document = (
+            '<x:document xmlns:x="http://schemas.openxmlformats.org/'
+            'wordprocessingml/2006/main"><x:body><x:p><x:r><x:t>'
+            'Prefix independent.</x:t></x:r></x:p></x:body></x:document>'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "paper.docx"
+            write_docx(path, document=document)
+            result = check_draft.preflight_docx(path)
+            self.assertEqual(result.status, 0)
+            self.assertEqual(check_draft.read(str(path)), "Prefix independent.\n")
+
+    def test_unresolved_docx_revision_families_block_extraction(self):
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        for element in [
+            "ins", "del", "moveFrom", "moveTo", "moveFromRangeStart",
+            "moveToRangeEnd", "cellIns", "numberingChange", "rPrChange",
+            "pPrChange", "tblPrChange", "sectPrChange",
+        ]:
+            document = (
+                f'<w:document xmlns:w="{w_ns}"><w:body><w:p>'
+                f'<w:{element}><w:r><w:t>Unresolved.</w:t></w:r></w:{element}>'
+                '</w:p></w:body></w:document>'
+            )
+            with self.subTest(element=element), tempfile.TemporaryDirectory() as temp_dir:
+                path = Path(temp_dir) / "revision.docx"
+                write_docx(path, document=document)
+                result = check_draft.preflight_docx(path)
+                self.assertTrue(result.has_blockers)
+                with self.assertRaises(ValueError):
+                    check_draft.read(str(path))
+
+    def test_revision_in_secondary_story_blocks_extraction(self):
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        header = (
+            f'<w:hdr xmlns:w="{w_ns}"><w:p><w:ins><w:r>'
+            '<w:t>Header insertion.</w:t></w:r></w:ins></w:p></w:hdr>'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "revision.docx"
+            write_docx(path, ["Clean body."], parts={"word/header1.xml": header})
+            result = check_draft.preflight_docx(path)
+        self.assertTrue(result.has_blockers)
+        self.assertTrue(any(item.part == "word/header1.xml" for item in result.findings))
+
+    def test_alternate_content_blocks_but_tracking_setting_only_informs(self):
+        mc_ns = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        alternate = (
+            f'<w:document xmlns:w="{w_ns}" xmlns:mc="{mc_ns}"><w:body>'
+            '<mc:AlternateContent><mc:Choice Requires="w"><w:p><w:r><w:t>A</w:t>'
+            '</w:r></w:p></mc:Choice></mc:AlternateContent></w:body></w:document>'
+        )
+        settings = f'<w:settings xmlns:w="{w_ns}"><w:trackRevisions/></w:settings>'
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blocked = Path(temp_dir) / "alternate.docx"
+            write_docx(blocked, document=alternate)
+            self.assertTrue(check_draft.preflight_docx(blocked).has_blockers)
+            tracked = Path(temp_dir) / "tracked.docx"
+            write_docx(tracked, ["Clean body."], parts={"word/settings.xml": settings})
+            result = check_draft.preflight_docx(tracked)
+            self.assertEqual(result.status, 2)
+            self.assertFalse(result.has_blockers)
+            self.assertEqual(check_draft.read(str(tracked)), "Clean body.\n")
+
+    def test_complex_docx_objects_are_structured_lossy_findings(self):
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        m_ns = "http://schemas.openxmlformats.org/officeDocument/2006/math"
+        document = (
+            f'<w:document xmlns:w="{w_ns}" xmlns:m="{m_ns}"><w:body>'
+            '<w:p><w:r><w:t>Visible prose.</w:t></w:r><m:oMath/></w:p>'
+            '<w:tbl/><w:p><w:fldSimple/><w:sdt/><w:drawing/><w:txbxContent/>'
+            '</w:p></w:body></w:document>'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "complex.docx"
+            write_docx(
+                path,
+                document=document,
+                parts={
+                    "word/comments.xml": (
+                        f'<w:comments xmlns:w="{w_ns}"><w:comment><w:p><w:r>'
+                        '<w:t>Comment.</w:t></w:r></w:p></w:comment></w:comments>'
+                    ),
+                    "word/media/image1.png": b"image",
+                    "word/charts/chart1.xml": "<chart/>",
+                    "word/embeddings/object1.bin": b"object",
+                },
+            )
+            result = check_draft.preflight_docx(path)
+            codes = {item.code for item in result.findings}
+            self.assertTrue(result.has_lossy)
+            self.assertTrue(
+                {"equation", "table", "field", "content_control", "drawing",
+                 "textbox", "comment", "media", "chart", "embedded_object"}
+                <= codes
+            )
+            with self.assertRaises(ValueError):
+                check_draft.read(str(path))
+            self.assertEqual(
+                check_draft.extract_docx(path, preflight=result, allow_lossy=True),
+                "Visible prose.\n",
+            )
+
     def test_malformed_docx_is_an_input_error(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "draft.docx"
@@ -519,6 +702,28 @@ class InputTests(unittest.TestCase):
                 archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
             with self.assertRaises(ValueError):
                 check_draft.read(str(empty))
+
+    def test_docx_rejects_malformed_related_xml_and_duplicate_main_part(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            malformed = Path(temp_dir) / "malformed.docx"
+            write_docx(
+                malformed, ["Clean body."],
+                parts={"word/header1.xml": "<w:hdr>"},
+            )
+            with self.assertRaisesRegex(ValueError, "header1.xml XML 损坏"):
+                check_draft.preflight_docx(malformed)
+            duplicate = Path(temp_dir) / "duplicate.docx"
+            document = (
+                '<w:document xmlns:w="http://schemas.openxmlformats.org/'
+                'wordprocessingml/2006/main"><w:body/></w:document>'
+            )
+            with zipfile.ZipFile(duplicate, "w") as archive:
+                archive.writestr("[Content_Types].xml", DOCX_CONTENT_TYPES)
+                archive.writestr("word/document.xml", document)
+                with self.assertWarns(UserWarning):
+                    archive.writestr("word/document.xml", document)
+            with self.assertRaisesRegex(ValueError, "重复的 word/document.xml"):
+                check_draft.preflight_docx(duplicate)
 
     def test_rejects_invalid_utf8(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -559,6 +764,74 @@ class InputTests(unittest.TestCase):
             )
         self.assertEqual(status, 3)
         self.assertIn("--extract", error)
+
+    def test_docx_preflight_cli_and_lossy_extraction_contract(self):
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        document = (
+            f'<w:document xmlns:w="{w_ns}"><w:body><w:p><w:r>'
+            '<w:t>Visible prose.</w:t></w:r></w:p><w:tbl/></w:body></w:document>'
+        )
+        revision = document.replace("<w:tbl/>", "<w:ins><w:r><w:t>Pending.</w:t></w:r></w:ins>")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            complex_path = Path(temp_dir) / "complex.docx"
+            write_docx(complex_path, document=document)
+            status, output, error = self.run_main([str(complex_path), "--docx-preflight"])
+            self.assertEqual(status, 2)
+            self.assertIn("table", output)
+            self.assertEqual(error, "")
+            status, output, error = self.run_main([str(complex_path), "--extract"])
+            self.assertEqual(status, 1)
+            self.assertEqual(output, "")
+            self.assertIn("有损", error)
+            status, output, error = self.run_main(
+                [str(complex_path), "--extract", "--allow-lossy-docx"]
+            )
+            self.assertEqual(status, 2)
+            self.assertEqual(output, "Visible prose.\n")
+            self.assertIn("诊断性有损抽取", error)
+            revision_path = Path(temp_dir) / "revision.docx"
+            write_docx(revision_path, document=revision)
+            status, output, error = self.run_main(
+                [str(revision_path), "--extract", "--allow-lossy-docx"]
+            )
+        self.assertEqual(status, 1)
+        self.assertEqual(output, "")
+        self.assertIn("接受或拒绝全部修订", error)
+
+    def test_compare_preflights_either_docx_side(self):
+        w_ns = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+        revision = (
+            f'<w:document xmlns:w="{w_ns}"><w:body><w:p><w:ins><w:r>'
+            '<w:t>Pending.</w:t></w:r></w:ins></w:p></w:body></w:document>'
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            blocked = Path(temp_dir) / "blocked.docx"
+            clean = Path(temp_dir) / "clean.docx"
+            write_docx(blocked, document=revision)
+            write_docx(clean, ["Clean body."])
+            for original, edited in [(blocked, clean), (clean, blocked)]:
+                with self.subTest(original=original):
+                    status, output, error = self.run_main(
+                        [str(original), "--compare", str(edited)]
+                    )
+                    self.assertEqual(status, 1)
+                    self.assertEqual(output, "")
+                    self.assertIn("revision", error)
+
+    def test_docx_cli_rejects_invalid_option_combinations(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "clean.docx"
+            write_docx(path, ["Clean."])
+            cases = [
+                [str(path), "--docx-preflight", "--extract"],
+                [str(path), "--allow-lossy-docx"],
+                ["-", "--allow-lossy-docx", "--extract"],
+            ]
+            for argv in cases:
+                with self.subTest(argv=argv):
+                    status, _, error = self.run_main(argv)
+                    self.assertEqual(status, 3)
+                    self.assertIn("error", error)
 
     def test_mixed_stdin_and_tex_preserves_latex_hint(self):
         with tempfile.TemporaryDirectory() as temp_dir:
