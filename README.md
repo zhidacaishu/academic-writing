@@ -64,7 +64,7 @@ academic-writing/
 | [`SKILL.md`](SKILL.md) | 触发范围、工作模式、硬性边界和执行流程 |
 | [`references/design-science-genre.md`](references/design-science-genre.md) | 设计科学体裁、贡献层级、理论适配、评价、摘要和标题 |
 | [`references/cn-en-transfer.md`](references/cn-en-transfer.md) | 中译英、句法迁移、时态和声称强度 |
-| [`references/style-and-consistency.md`](references/style-and-consistency.md) | 文风、一致性、语法、模型化表达复核和说服力 |
+| [`references/style-and-consistency.md`](references/style-and-consistency.md) | 文风、一致性、语法、机械化与空泛表达复核和说服力 |
 | [`scripts/check_draft.py`](scripts/check_draft.py) | 英文稿机械检查及润色前后受保护对象比对 |
 | [`scripts/test_check_draft.py`](scripts/test_check_draft.py) | 检查器回归测试 |
 
@@ -118,16 +118,23 @@ python3 scripts/check_draft.py draft.tex
 - 中文字符与全角标点残留
 - 长破折号：中文破折号、em dash 及 LaTeX `---`
 - 确定性中式学术英语与冗余结构
-- 英美拼写混用
-- 数字格式不一致：百分比小数位数、`.5` 与 `0.5` 混用
+- 数字格式不一致：`.5` 与 `0.5` 混用
 - 未闭合的 Markdown 代码围栏：其后内容全部被屏蔽，须显式报出
 
 人工复核项（依赖语境，需要人判断）：
 
 - 声称强度越界：无检验的 `significantly`、`is superior to`、`in general` 等
-- 需结合语境的措辞、句内 en dash、`etc.` 兜底列举，以及 LaTeX 稿中的弯引号
+- 需结合语境的措辞、英美拼写混用、百分比显示精度、句内 en dash、`etc.` 兜底列举，以及 LaTeX 稿中的弯引号
 - 同一概念的表层写法变体、缩写首现（含复数形式）未定义、疑似过去时
-- 超长句、句长分布，以及相邻段首的连接词链条
+- 超长句，以及相邻段首的连接词链条
+
+需要句长描述统计时，另行运行：
+
+```bash
+python3 scripts/check_draft.py draft.tex --sentence-metrics
+```
+
+该选项只报告句数、均值、标准差、变异系数和 15–25 词占比，不产生问题等级，也不影响退出码。默认检查不会仅因稿件达到一定句数而产生复核项。
 
 Markdown frontmatter、代码区域以及 LaTeX 注释、公式和结构源码不会作为普通散文检查。Markdown 的分隔线与表格分隔行不计为破折号；弯引号只在 LaTeX 稿中提示，`.md` 与 `.txt` 稿不报。
 

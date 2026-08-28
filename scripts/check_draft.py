@@ -9,6 +9,7 @@
 
 用法
     python3 check_draft.py draft.tex
+    python3 check_draft.py draft.tex --sentence-metrics
     python3 check_draft.py orig.tex --compare new.tex
     python3 check_draft.py paper.docx --extract > paper.md
 
@@ -43,9 +44,9 @@ CN_ENGLISH = [
     "it is not difficult to find", "to a certain extent",
     "draw the conclusion", "management enlightenment", "research prospect",
     "research deficiency", "policy suggestion", "the method proposed by this paper",
-    "literatures", "researches", "super parameter", "target function",
+    "literatures", "researches", "super parameter",
     "over fitting", "cold boot", "generate process", "calculate complexity",
-    "adjust parameters", "comparison experiment", "robust test",
+    "comparison experiment", "robust test",
     "sensitivity analyse", "reach the best",
 ]
 CONTEXTUAL_WORDING = {
@@ -54,6 +55,10 @@ CONTEXTUAL_WORDING = {
     "prior to": "before 通常更简洁，但时间或程序语境中可保留",
     "subsequent to": "after 通常更简洁，但时间或程序语境中可保留",
     "in the realm of": "滥用时压缩成 in；确指某一领域时可保留",
+    "target function": "优化目标通常用 objective function；确指目标映射时可保留",
+    "adjust parameters": "若指超参数选择，用 tune hyperparameters；一般参数调整可保留",
+    "the vast majority of": "证据支持很高比例时可保留；否则用 most 或直接报告比例",
+    "serve to illustrate": "通常可压缩为 illustrate；强调作用或功能时可保留",
 }
 # 冗余结构。压缩后不损失正式度。
 BLOAT = {
@@ -62,13 +67,11 @@ BLOAT = {
     "it should be noted that": "删除，直接说",
     "it is important to note that": "删除，直接说",
     "at this point in time": "now / currently",
-    "the vast majority of": "most",
     "a wide array of": "various / 给数量",
     "a myriad of": "many / 给数量",
     "has the ability to": "can",
     "make an assumption that": "assume",
     "conduct an analysis of": "analyze",
-    "serve to illustrate": "illustrate",
 }
 # 声称强度越界。
 OVERCLAIM = [
@@ -1075,6 +1078,38 @@ def split_sentences(prose):
     return [sentence for _, _, sentence in split_sentences_with_spans(prose)]
 
 
+def sentence_length_metrics(prose):
+    lengths = [
+        len(sentence.split())
+        for sentence in split_sentences(prose)
+        if len(sentence.split()) > 2
+    ]
+    if not lengths:
+        return None
+    mean = statistics.mean(lengths)
+    sd = statistics.pstdev(lengths)
+    return {
+        "count": len(lengths),
+        "mean": mean,
+        "sd": sd,
+        "cv": sd / mean if mean else 0,
+        "band": sum(1 for length in lengths if 15 <= length <= 25) / len(lengths),
+    }
+
+
+def render_sentence_metrics(prose):
+    metrics = sentence_length_metrics(prose)
+    if metrics is None:
+        return "句长指标：没有足够的散文句子可供统计。"
+    return (
+        "句长指标："
+        f"共 {metrics['count']} 句，均值 {metrics['mean']:.1f}，"
+        f"标准差 {metrics['sd']:.1f}，变异系数 {metrics['cv']:.2f}，"
+        f"15–25 词占 {metrics['band']:.0%}。"
+        "该信息仅作描述，不产生问题等级，也不影响退出码。"
+    )
+
+
 # ---------------------------------------------------------------- 各项检查
 def _is_markdown_rule_line(text, pos):
     """Markdown 的分隔线、setext 下划线与表格分隔行只由 - | : 组成，不是破折号。"""
@@ -1150,7 +1185,7 @@ def check_consistency(prose, rep):
         a = len(re.findall(rf"\b{us}\w*\b", low))
         b = len(re.findall(rf"\b{uk}\w*\b", low))
         if a and b:
-            rep.add("hard", "英美拼写混用", f"{us}×{a} / {uk}×{b}  → INFORMS 系用美式")
+            rep.add("soft", "英美拼写混用", f"{us}×{a} / {uk}×{b}  → INFORMS 系用美式")
 
 
 def check_acronyms(prose, rep):
@@ -1182,8 +1217,6 @@ def check_tense(prose, rep):
 
 def check_sentences(prose, rep):
     spans = split_sentences_with_spans(prose)
-    sents = [sentence for _, _, sentence in spans]
-    lengths = [len(sentence.split()) for sentence in sents if len(sentence.split()) > 2]
     for start, _, sentence in spans:
         length = len(sentence.split())
         if length > 45:
@@ -1211,19 +1244,6 @@ def check_sentences(prose, rep):
             detail = "、".join(f"L{line} '{word}'" for line, word in run)
             rep.add("soft", "连接词堆叠", f"{len(run)} 个相邻段落以连接词开头：{detail}")
         run = []
-    if len(lengths) < 8:
-        return
-    mean = statistics.mean(lengths)
-    sd = statistics.pstdev(lengths)
-    cv = sd / mean if mean else 0
-    band = sum(1 for n in lengths if 15 <= n <= 25) / len(lengths)
-    rep.add("soft", "句长分布",
-            f"共 {len(lengths)} 句，均值 {mean:.1f}，标准差 {sd:.1f}，"
-            f"变异系数 {cv:.2f}，落在 15–25 词的占 {band:.0%}")
-    if cv < 0.35:
-        rep.add("soft", "句长分布", "变异系数偏低：句长分布可能过于均匀，需结合语境人工判断")
-    if band > 0.55:
-        rep.add("soft", "句长分布", "超过半数句子的长度集中在 15–25 词：应根据内容关系合并短句或拆分长句")
 
 
 def check_fences(text, rep):
@@ -1237,7 +1257,11 @@ def check_numbers(prose, rep):
     if pcts:
         places = Counter(len(d) for _, d in pcts)
         if len(places) > 1:
-            rep.add("hard", "数字格式", f"百分比小数位数不一致：{dict(places)}")
+            rep.add(
+                "soft", "数字精度需结合语境",
+                f"检测到多种百分比小数位数：{dict(places)}；"
+                "仅在同一表格、同一指标或直接可比数值中需要统一",
+            )
     if re.search(r"(?<![\w.])\.\d", prose) and re.search(r"\b0\.\d", prose):
         rep.add("hard", "数字格式", "同时出现 .5 与 0.5 两种写法")
 
@@ -1589,6 +1613,8 @@ def main():
     )
     ap.add_argument("--compare", metavar="EDITED",
                     help="润色后的 .txt/.md/.tex，按顺序比对受保护对象")
+    ap.add_argument("--sentence-metrics", action="store_true",
+                    help="附加句长描述统计；不产生问题等级，也不影响退出码")
     ap.add_argument("--extract", action="store_true",
                     help="将正文抽取为纯文本输出至标准输出，不执行检查；用于 .docx")
     ap.add_argument("--docx-preflight", action="store_true",
@@ -1600,6 +1626,8 @@ def main():
         ap.error("原稿和修改稿不能同时从标准输入读取")
     if args.extract and args.compare:
         ap.error("--extract 与 --compare 不能同时使用")
+    if args.sentence_metrics and (args.compare or args.extract or args.docx_preflight):
+        ap.error("--sentence-metrics 仅用于常规检查")
     if args.docx_preflight and (args.extract or args.compare or args.allow_lossy_docx):
         ap.error("--docx-preflight 必须单独使用")
     path_is_docx = args.path != "-" and Path(args.path).suffix.lower() == ".docx"
@@ -1674,6 +1702,9 @@ def main():
 
     rep = run_checks(text, is_latex, is_markdown)
     print(rep.render())
+    if args.sentence_metrics:
+        prose = build_prose_view(text, is_latex, is_markdown)
+        print(f"\n{render_sentence_metrics(prose)}")
     print("\n注：脚本只覆盖机械层面。挑战是否成立、设计与评估是否对应、"
           "贡献属于 artifact、设计知识还是 design theory，这些必须人工判断。")
     sys.exit(1 if rep.hard else (2 if rep.soft else 0))

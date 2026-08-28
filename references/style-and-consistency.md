@@ -46,29 +46,29 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 | it is important to note that | 删除 |
 | in the realm of / in the context of（滥用时） | in |
 | a wide array of / a myriad of | various、many、或直接给数量 |
-| the vast majority of | most |
 | prior to / subsequent to（无明确时序含义时） | before / after |
 | at this point in time | now、currently |
 | in spite of the fact that | although |
 | has the ability to | can |
 | make an assumption that | assume |
 | conduct an analysis of | analyze |
-| serve to illustrate | illustrate |
 
 规律：**名词化的动词要还原成动词**（conduct an analysis → analyze），**多词介词短语要压缩**（due to the fact that → because）。这两类改动能在不损失正式度的前提下显著提高信息密度。
 
 ### 需要判断的几个
 
 - **leverage**：在本领域论文里常见（leveraging individual-level estimates）。但如果只是"使用"的意思，改成 use 或 draw on。
-- **delve into**：改成 examine、investigate。该词在当前模型生成文本中出现频率较高，即使含义正确也建议避免使用。
+- **delve into**：在正式研究写作中通常可改为 examine 或 investigate；若确需表达深入分析且语境自然，可以保留。
 - **state-of-the-art**：指代真实的当前最优基线时是准确用词，保留；用来形容自己的方法就是空话。
 - **novel**：可以用，但一篇里出现三次以上就贬值了。
+- **the vast majority of**：只有在证据支持“绝大多数”时保留，最好给出比例；若只表达“多数”，用 most。
+- **serve to illustrate**：通常可压缩为 illustrate；若 serve 用于强调作用或功能，可以保留。
 
 ---
 
 ## 三、句式：结构简单，长度多变
 
-这两件事要分开，混在一起会写出最像 AI 的文本。
+结构与长度应分别判断。
 
 ### 结构要简单
 
@@ -80,13 +80,9 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 
 ### 长度要有变化
 
-**不要把所有句子都写成 15 到 25 词。**句长分布可以用于提示文本节奏是否过于均匀，但不能单独判定文本来源。应同时保留适合内容复杂度的短句和长句。
+**不要把所有句子都写成 15 到 25 词。**句长应由信息密度和句法关系决定；短句与长句都可以成立，只要长句线性推进且不过度嵌套。
 
-所以正确的目标是：**结构简单，但长度参差。**8 词的短句和 35 词的长句都可以有，只要后者是线性推进的，不是嵌套三层的。
-
-自检方法：`scripts/check_draft.py` 会计算全文的句长均值、标准差、变异系数和落在 15–25 词区间的比例。长稿的句长统计应由脚本完成，结果仅作为人工复核的提示。
-
-变异系数偏低时，可以合并相关短句、拆分复杂长句，或在需要明确判断的位置使用短句。句长变化应由内容结构决定；随机插入短句会形成与论证内容不匹配的机械节奏。
+需要描述文本节奏时，运行 `python3 scripts/check_draft.py draft.tex --sentence-metrics`。该选项只报告句数、均值、标准差、变异系数和 15–25 词占比，不产生问题等级，也不影响退出码。不得根据固定阈值机械合并或拆分句子。
 
 段落长度同样应随内容变化。全文段落长度高度一致时，应检查是否存在机械化结构。
 
@@ -106,7 +102,7 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 - **符号**。上下标、粗体（向量与矩阵）与斜体（标量）的区分、估计值的帽子记号、真值与估计值的区分。同一个量在正文、公式、图、表、算法块里用同一个符号。
 - **方法名**。包括大小写与连字符位置。MS-DBN 不能在别处写成 MS DBN 或 MSDBN。
 - **缩写**。首次出现给全称加缩写，之后一律用缩写。摘要和正文各定义一次，因为摘要可能被单独阅读。标题里不用未定义的缩写。
-- **数字格式**。小数位数、千分位分隔符、百分比与百分点的区分。
+- **数字格式**。同一表格、同一指标或直接可比的一组数值应保持一致精度；不同统计对象可以采用不同但合理的精度。千分位分隔符、百分比与百分点的区分应保持一致。
 
 ### 可以变化
 
@@ -131,30 +127,15 @@ utilize、employ、demonstrate、facilitate、substantial、comprise、constitut
 
 ---
 
-## 五、减少模型化表达特征
+## 五、复核机械化与空泛表达
 
-### 适用边界
+本节只评估文本质量，不推断文本来源，也不以规避检测为目标。合法词语或句式本身不构成问题；只有当表达缺乏具体所指、机械重复、掩盖可验证内容或削弱论证时才修改。
 
-自动检测和人工识别常参考以下两个特征：
+### 词语与过渡语
 
-- **困惑度（perplexity）**：文本对语言模型的可预测程度。模型倾向于选高概率词，所以生成文本的用词比人类更"意料之中"。
-- **突发度（burstiness）**：句长与句式在全文中的变化幅度。人类在长短句之间来回切换，模型倾向于保持均匀。
+crucial、critical、significant、robust、comprehensive、nuanced 等正式词语可以使用，但必须有明确对象和证据。`It is worth noting that`、`plays a crucial role in`、`sheds light on`、`In conclusion`、段首 `Overall,` 等表达若不承担逻辑功能或信息增量，应删除或改写。不要因某个词或短语出现在固定名单中而机械替换。
 
-词表会随模型版本和使用习惯变化，因此固定名单只能供人工复核。出现某个合法词或短语本身不构成问题，也不得仅凭它改写句子；应结合上下文判断是否缺乏具体所指、机械重复或掩盖了可验证内容。`scripts/check_draft.py` 不把这些词和短语判为必改项。
-
-**不要以通过检测器为目标。**学术写作本身具有较强的格式约束，自动检测可能误判正式文本。正确目标是提高内容的具体性、论证质量和阅读自然度；检测结果不能作为唯一判断依据。
-
-### 人工复核线索：词语
-
-delve、underscore（作动词）、tapestry、intricate、pivotal、multifaceted、realm（比喻义）、landscape（比喻义）、seamless、holistic、testament、garner、harness（比喻义）、navigate（比喻义）、unlock（比喻义）、revolutionize、paramount、meticulous、showcase（作动词）、foster（滥用时）、nuanced（滥用时）、comprehensive（滥用时）。
-
-注意：robust 和 robustness 在方法论文里是技术术语（robustness checks），不在此列。crucial、critical、significant 在有具体所指时可用，泛泛地说 plays a crucial role 才是问题。
-
-### 人工复核线索：短语
-
-`It is worth noting that` · `plays a crucial role in` · `sheds light on` · `paves the way for` · `In today's rapidly evolving landscape` · `At its core` · `This raises an important question` · `In conclusion`（结论段直接讲结论）· `Overall,`（作段首万能开头时）
-
-### 结构性特征
+### 结构性问题
 
 - **机械重复三项排比。**如果每个列举都恰好包含三项，应检查是否由内容需要决定。
 - **每段结尾都增加概括句。**例如“因此，这一设计对模型性能至关重要。”如果没有新增证据或判断，应删除此类重复总结。
@@ -164,7 +145,7 @@ delve、underscore（作动词）、tapestry、intricate、pivotal、multifacete
 - **否定式排比。**"这不只是一个模型问题，而是一个设计问题。"
 - **过度使用平行小句。**反复使用 `X does A, Y does B, and Z does C` 等高度整齐的结构时，应根据内容关系调整句式。
 
-### 内容性痕迹
+### 内容性问题
 
 这一类人工审稿人最容易察觉，也最难靠改词解决：
 
@@ -173,7 +154,7 @@ delve、underscore（作动词）、tapestry、intricate、pivotal、multifacete
 - **对不确定的东西和确定的东西用同样强度的措辞。**
 - **无信息增量的复述。**在回答前重复问题，但没有提供新的分析。
 
-解决方法见第六节。提高内容具体性通常可以减少模型化表达特征。
+解决方法见第六节。提高内容具体性通常可以同时改善论证质量和阅读自然度。
 
 ---
 

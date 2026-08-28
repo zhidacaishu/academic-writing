@@ -119,6 +119,7 @@ prior work on recurrent marked point processes [待补引用：Du et al. / Mei &
 
 ```bash
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex
+python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" draft.tex --sentence-metrics
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" orig.tex --compare edited.tex
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" paper.docx --docx-preflight
 python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" paper.docx --extract > paper.md
@@ -127,7 +128,7 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/check_draft.py" - <<'EOF'   # 检查对话�
 EOF
 ```
 
-退出码：0 无问题，1 有必改项，2 只有人工复核项，3 输入或参数错误。**2 是正常结果**（句长分布始终作为复核项输出），不要当成命令执行失败。
+退出码：0 无问题，1 有必改项，2 只有人工复核项，3 输入或参数错误。退出码 2 不是执行失败，应逐项复核后再决定是否修改。句长指标仅在使用 `--sentence-metrics` 时输出，不产生问题等级，也不影响退出码。
 
 脚本报告确定性问题和人工复核项，并保留源码行号。它不能判断主张是否改变、设计与评价是否对应或贡献层级；仍须人工复核语义。无法执行脚本时，按同一项目人工检查并说明限制。
 
@@ -144,7 +145,7 @@ EOF
 5. **语法正确。**重点检查平行与比较结构、关系从句、动词搭配、主谓一致和悬垂分词。
 6. **时态统一为现在时。**理论、模型、数据与实验流程、图表和结论一律用现在时；引言概述既有研究可用现在完成时。唯一例外是陈述一次真实发生过的一次性事件本身。见 `references/cn-en-transfer.md` 第二节。
 7. **不用长破折号。**不使用中文长破折号、em dash 或 LaTeX `---`；en dash 仅用于区间和复合专名。按句法功能改写，不直接替换为逗号。
-8. **模型化表达仅作复核线索。**检查机械排比、空泛概括和过度均匀的句段长度，不据此判定文本来源。
+8. **复核机械化与空泛表达。**仅在表达缺乏具体所指、机械重复、掩盖证据或削弱论证时修改，不根据词表或表层特征推断文本来源。
 
 同时检查**说服力**：关键设计决策是否回应更简单的替代方案，核心声称是否指向相应证据。详见 `references/style-and-consistency.md` 第六节。
 
@@ -205,7 +206,7 @@ EOF
 
 | 文件 | 什么时候读 |
 |---|---|
-| `references/style-and-consistency.md` | 处理任何英文成稿都要读：文风约束、一致性检查、模型化表达的人工复核、说服力 |
+| `references/style-and-consistency.md` | 处理任何英文成稿都要读：文风约束、一致性检查、机械化与空泛表达复核、说服力 |
 | `references/design-science-genre.md` | 结构、可追溯闭环、理论适配、贡献层级、评估章节、摘要与标题、诊断判据 |
 | `references/cn-en-transfer.md` | 涉及中译英、中式英文、术语、句法、声称强度时 |
 | `scripts/check_draft.py` | 交付前必跑；执行时通过 `${CLAUDE_SKILL_DIR}` 定位，润色模式另跑 `--compare`，`.docx` 先跑 `--docx-preflight`，通过后再 `--extract` |

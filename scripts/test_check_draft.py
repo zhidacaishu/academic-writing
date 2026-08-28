@@ -338,14 +338,14 @@ class ProseViewTests(unittest.TestCase):
                 report = check_draft.run_checks(text, is_latex=True)
                 self.assertIn("中式学术英语", report.hard)
 
-    def test_legal_ai_associated_words_are_not_checked(self):
+    def test_formal_academic_words_are_not_checked(self):
         text = (
             "We delve into an intricate and pivotal problem and showcase a "
             "multifaceted, nuanced, and comprehensive analysis."
         )
         report = check_draft.run_checks(text, is_latex=False)
-        sections = set(report.hard) | set(report.soft)
-        self.assertFalse(any("AI" in section for section in sections))
+        self.assertFalse(report.hard)
+        self.assertFalse(report.soft)
 
     def test_grammar_sensitive_hyphenation_is_not_reported(self):
         text = (
@@ -375,6 +375,24 @@ class ProseViewTests(unittest.TestCase):
         text = " ".join(["word"] * 60) + "."
         report = check_draft.run_checks(text, is_latex=False)
         self.assertIn("超长句", report.soft)
+
+    def test_sentence_distribution_is_informational_only(self):
+        text = " ".join([
+            "Alpha supports the first claim.",
+            "Beta clarifies the second claim.",
+            "Gamma defines the central mechanism.",
+            "Delta links evidence to design.",
+            "Epsilon states the relevant boundary.",
+            "Zeta reports the comparison clearly.",
+            "Eta records the implementation cost.",
+            "Theta closes the argument directly.",
+        ])
+        report = check_draft.run_checks(text, is_latex=False)
+        self.assertFalse(report.hard)
+        self.assertFalse(report.soft)
+        metrics = check_draft.render_sentence_metrics(text)
+        self.assertIn("共 8 句", metrics)
+        self.assertIn("不影响退出码", metrics)
 
     def test_connective_chain_needs_adjacent_paragraph_starts(self):
         chained = (
@@ -459,6 +477,14 @@ class ProseViewTests(unittest.TestCase):
         report = check_draft.run_checks("Values are .5 and 0.5.", is_latex=False)
         self.assertIn("数字格式", report.hard)
 
+    def test_percentage_precision_requires_contextual_review(self):
+        report = check_draft.run_checks(
+            "The first rate is 1.2%, whereas the second rate is 3.45%.",
+            is_latex=False,
+        )
+        self.assertNotIn("数字格式", report.hard)
+        self.assertIn("数字精度需结合语境", report.soft)
+
     def test_plural_variants_and_acronyms_are_checked(self):
         report = check_draft.run_checks(
             "We tune two hyperparameters. Each hyper-parameter matters.",
@@ -472,7 +498,7 @@ class ProseViewTests(unittest.TestCase):
         )
         self.assertNotIn("缩写首现未定义", report.soft)
 
-    def test_variant_spelling_is_softer_than_british_american_mix(self):
+    def test_variant_spelling_and_british_american_mix_require_review(self):
         report = check_draft.run_checks(
             "We tune the hyperparameter and report every hyper-parameter.",
             is_latex=False,
@@ -482,7 +508,8 @@ class ProseViewTests(unittest.TestCase):
         report = check_draft.run_checks(
             "We analyze the sample and then analyse the residuals.", is_latex=False
         )
-        self.assertIn("英美拼写混用", report.hard)
+        self.assertNotIn("英美拼写混用", report.hard)
+        self.assertIn("英美拼写混用", report.soft)
 
     def test_curly_quotes_are_reported_only_for_latex(self):
         draft = "We call this a “regime” of behavior."
@@ -552,6 +579,17 @@ class ProseViewTests(unittest.TestCase):
         self.assertNotIn("中式学术英语", report.hard)
         self.assertNotIn("冗余结构", report.hard)
         self.assertTrue(report.soft)
+
+    def test_context_dependent_phrases_are_not_hard_failures(self):
+        report = check_draft.run_checks(
+            "The target function is convex. We adjust parameters after inspection. "
+            "The vast majority of observations remain. These cases serve to illustrate "
+            "the distinction.",
+            is_latex=False,
+        )
+        self.assertNotIn("中式学术英语", report.hard)
+        self.assertNotIn("冗余结构", report.hard)
+        self.assertEqual(len(report.soft["措辞需结合语境"]), 4)
 
 
 class InputTests(unittest.TestCase):
